@@ -159,6 +159,9 @@ func main() {
 	up.ClientVersion = cfg.Upstream.ClientVersion
 	up.CliVersion = cfg.Upstream.CliVersion
 	up.ClientName = cfg.Upstream.ClientName
+	up.HeaderProfile = cfg.Upstream.HeaderProfile
+	up.SDKOS = cfg.Upstream.SDKOS
+	up.SDKArch = cfg.Upstream.SDKArch
 	up.DeviceToken = cfg.Upstream.DeviceToken
 	up.DeviceTokenFile = cfg.Upstream.DeviceTokenFile
 	up.PassthroughIP = cfg.Upstream.PassthroughIP

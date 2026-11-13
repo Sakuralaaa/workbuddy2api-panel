@@ -39,8 +39,8 @@ import (
 const (
 	desktopReportPath    = "/v2/report"
 	desktopAppearanceSet = "/v2/user-asset/appearance/set"
-	// desktopUA 实测桌面客户端 UA（5.5.6 内嵌 CLI 2.137.1）。
-	desktopUA = "WorkBuddy/5.5.6 WorkBuddy/5.5.6 CLI/2.137.1"
+	// desktopUA 桌面客户端 UA（国内版 5.9.3 内嵌 CLI 2.165.0）。
+	desktopUA = "WorkBuddy/5.9.3 WorkBuddy/5.9.3 CLI/2.165.0"
 )
 
 // desktopBase 桌面端 /v2/report 与 user-asset 走 chatBase（copilot.tencent.com）。
@@ -70,11 +70,11 @@ func desktopFingerprint(a *auth.Auth) map[string]any {
 		"commit":       "5f9692923c93033111c51ad7b003eb80204a9b75",
 		"ideName":      "WorkBuddy",
 		"ideType":      "WorkBuddy",
-		"ideVersion":   "5.5.6",
+		"ideVersion":   "5.9.3",
 		"machineId":    deriveID(a, "machine"),
 		"sessionId":    deriveID(a, "session"),
 		"extName":      "workbuddy-desktop",
-		"extVersion":   "5.5.6",
+		"extVersion":   "5.9.3",
 		"os":           "win32",
 		"arch":         "x64",
 		"osVersion":    "10.0.26220",
@@ -451,7 +451,7 @@ func (c *Client) DesktopChatWithExpert(a *auth.Auth, expertID string) (conversat
 	h.Set("X-Agent-Type", "main")
 	h.Set("X-IDE-Name", "WorkBuddy")
 	h.Set("X-IDE-Type", "WorkBuddy")
-	h.Set("X-IDE-Version", "5.5.6")
+	h.Set("X-IDE-Version", "5.9.3")
 	h.Set("x-codebuddy-request", "1")
 	if expertID != "" {
 		h.Set("X-Expert-Id", expertID)

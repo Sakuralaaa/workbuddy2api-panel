@@ -751,6 +751,12 @@ type Client struct {
 	// ClientName 用量归属头取值（X-Product / X-IDE-Name / X-IDE-Type / X-IDE-Version）。
 	// 空 = 旧行为：X-Product="SaaS"，不设 X-IDE-*（向后兼容，不突变归因）。
 	ClientName string
+	// HeaderProfile chat 出站头族形态："official"（默认，按官方桌面端 CLI 实抓）或
+	// "legacy"（本项目旧形态，仅作回退）。
+	HeaderProfile string
+	// SDKOS / SDKArch X-Stainless-OS / -Arch 覆盖值；空 = 按网关主机平台。
+	SDKOS   string
+	SDKArch string
 
 	// PassthroughIP 是否透传客户端 IP 给上游（X-Forwarded-For/X-Real-IP 首段）。
 	// 缺省 false（反代安全边界）；handler 在 chat 路径按请求把 clientIP 传入 ChatStream。

@@ -53,6 +53,9 @@
     "client_version": "",
     "cli_version": "",
     "client_name": "",
+    "header_profile": "official",
+    "sdk_os": "",
+    "sdk_arch": "",
     "device_token": "",
     "device_token_file": "",
     "passthrough_ip": false

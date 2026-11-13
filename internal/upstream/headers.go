@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"runtime"
 	"strings"
 
 	"github.com/linguo2625469/workbuddy2api-panel/internal/auth"
@@ -14,12 +15,27 @@ import (
 
 const (
 	// defaultClientVersion 出站 WorkBuddy 客户端版本段（UA 的 `WorkBuddy/<ver>` 与
-	// 白名单头组的 X-IDE-Version）。对齐官方 WorkBuddy Desktop 分发包版本（5.5.4）。
-	// config upstream.client_version 可覆盖（空 = 内置默认）。
-	defaultClientVersion = "5.5.4"
-	// defaultCliVersion 出站 UA 中 `CLI/<ver>` 段版本。对齐官方内置 CLI（2.137.1）。
+	// 白名单头组的 X-IDE-Version）。国内版对齐 WorkBuddy 5.9.3（2026-10-28 更新源
+	// 当前版本，magpie 读取），国际版对齐桌面端实抓的 5.9.4（workbuddy2api-hub 与
+	// magpie #691 抓包一致）。config upstream.client_version 可覆盖（空 = 内置默认）。
+	defaultClientVersion       = "5.9.3"
+	defaultClientVersionGlobal = "5.9.4"
+	// defaultCliVersion 出站 UA 中 `CLI/<ver>` 段版本。两版本内置 CLI 均为 2.165.0。
 	// config upstream.cli_version 可覆盖（空 = 内置默认）。
-	defaultCliVersion = "2.137.1"
+	defaultCliVersion = "2.165.0"
+
+	// 官方 CLI 发模型请求所用 OpenAI Node SDK 的 X-Stainless-* 头族取值
+	// （与 magpie / WorkBuddy-plugins 逐字节对齐）。
+	stainlessPackageVersion = "6.25.0"
+	stainlessNodeVersion    = "v22.21.1"
+	// agentRuntime 官方桌面端本地 agent 的 X-Agent-Runtime。
+	agentRuntime = "local-agent"
+
+	// HeaderProfileOfficial chat 出站头族按官方桌面端 CLI 实抓形态（默认）。
+	HeaderProfileOfficial = "official"
+	// HeaderProfileLegacy chat 出站头族沿用本项目旧形态（Origin/Referer、
+	// X-CodeBuddy-Request、X-Machine-ID、B3 链路等），仅作回退。
+	HeaderProfileLegacy = "legacy"
 
 	originRefererCN     = "https://www.codebuddy.cn"
 	originRefererGlobal = "https://www.workbuddy.ai"
@@ -37,10 +53,27 @@ func originRefererFor(a *auth.Auth) string {
 // clientVersion 生效的 WorkBuddy 客户端版本：Client.ClientVersion 非空则取之，
 // 否则内置默认 defaultClientVersion。
 func (c *Client) clientVersion() string {
+	return c.clientVersionFor(nil)
+}
+
+// clientVersionFor 按账号 realm 取客户端版本：显式配置优先；否则国际版 5.9.4、
+// 国内版 5.9.3（两版本官方桌面端发版节奏不同）。
+func (c *Client) clientVersionFor(a *auth.Auth) string {
 	if c != nil && c.ClientVersion != "" {
 		return c.ClientVersion
 	}
+	if a != nil && a.IsGlobal() {
+		return defaultClientVersionGlobal
+	}
 	return defaultClientVersion
+}
+
+// headerProfile 生效的 chat 头族形态：仅显式 "legacy" 回退旧形态，其余一律 official。
+func (c *Client) headerProfile() string {
+	if c != nil && strings.EqualFold(strings.TrimSpace(c.HeaderProfile), HeaderProfileLegacy) {
+		return HeaderProfileLegacy
+	}
+	return HeaderProfileOfficial
 }
 
 // cliVersion 生效的 CLI 版本：Client.CliVersion 非空则取之，否则内置默认 defaultCliVersion。
@@ -54,16 +87,17 @@ func (c *Client) cliVersion() string {
 // defaultWorkBuddyUAFor 组装默认客户端出站 UA（官方桌面端 RestOperations 层形状）：
 // `WorkBuddy/<clientVersion> <platform>/<clientVersion> CLI/<cliVersion>`。
 // 平台段（第二段）品牌按 realm 切换——CN 用 applicationName 同值 `WorkBuddy`，
-// global 用官方国际版 productName `WorkBuddy AI`（intl 项目逆向证据：
-// `WorkBuddy/5.5.2 WorkBuddy AI/5.5.2 CLI/5.5.2`）。
-// global 账号送错平台段（`WorkBuddy` 非 `WorkBuddy AI`）可能触发上游 403 code 11140
-// "request illegal" 风控。官方无任何 UA 随机化，故默认确定性。
+// global 用国际版 applicationName `workbuddy-ai`（桌面端 5.9.4 实抓：
+// `WorkBuddy/5.9.4 workbuddy-ai/5.9.4 CLI/2.165.0`，workbuddy2api-hub 与 magpie
+// 抓包一致；旧的 `WorkBuddy AI` 是 productName，不是 UA 里的段）。
+// 官方无任何 UA 随机化，故默认确定性。
 func (c *Client) defaultWorkBuddyUAFor(a *auth.Auth) string {
 	platform := "WorkBuddy"
 	if a != nil && a.IsGlobal() {
-		platform = "WorkBuddy AI"
+		platform = "workbuddy-ai"
 	}
-	return "WorkBuddy/" + c.clientVersion() + " " + platform + "/" + c.clientVersion() + " CLI/" + c.cliVersion()
+	v := c.clientVersionFor(a)
+	return "WorkBuddy/" + v + " " + platform + "/" + v + " CLI/" + c.cliVersion()
 }
 
 // defaultWorkBuddyUA 返回 CN 形态的默认 UA（默认账号形态即 CN，零回归兼容既有调用/测试）。
@@ -196,6 +230,10 @@ type ChatMeta struct {
 // PassthroughIP=false 或 clientIP 为空时不注入 IP 头。
 // meta 为会话头族元数据（纯新增，不改既有头），见 injectConversationHeaders。
 func (c *Client) ChatHeaders(req *http.Request, a *auth.Auth, clientIP string, meta ChatMeta) {
+	if c.headerProfile() != HeaderProfileLegacy {
+		c.officialChatHeaders(req, a, clientIP, meta)
+		return
+	}
 	c.CommonHeaders(req, a)
 	// chat 流式 Accept 覆盖 CommonHeaders 的非流式默认（D6）。
 	req.Header.Set("Accept", "application/json, text/event-stream")
@@ -414,4 +452,128 @@ func (c *Client) RefreshHeaders(req *http.Request, a *auth.Auth) {
 	}
 	// X-Auth-Refresh-Source 对齐官方客户端 refresh 渠道标识 "plugin"（D3）。
 	req.Header.Set("X-Auth-Refresh-Source", "plugin")
+}
+
+// officialChatHeaders 按官方桌面端内置 CLI 发模型请求的实抓头族组装 chat 出站头
+// （与 magpie 网关、WorkBuddy-plugins 逐字节对齐，后两者已用真实账号验证）：
+//
+//	Authorization / X-User-Id / X-Domain / [X-Enterprise-Id + X-Tenant-Id]
+//	X-Product: SaaS · X-IDE-Type/Name: WorkBuddy · X-IDE-Version: <app>
+//	User-Agent: WorkBuddy/<app> <WorkBuddy|workbuddy-ai>/<app> CLI/<cli>
+//	X-Requested-With: XMLHttpRequest
+//	X-Agent-Intent: craft · X-Agent-Purpose: conversation
+//	X-Agent-Type: main · X-Agent-Runtime: local-agent
+//	X-Stainless-*（OpenAI Node SDK 6.25.0 / node v22.21.1）
+//	X-Conversation-ID / -Request-ID / -Message-ID · X-Request-ID · X-Root-Request-ID
+//	[X-Device-Token]
+//
+// 官方 CLI 不发、只有网关才会发的头一律不发：Origin / Referer（浏览器形态）、
+// X-CodeBuddy-Request、Accept-Language、X-Machine-ID / X-Session-ID、
+// X-Trace-ID / X-B3-*、X-No-* 声明头。这些「多出来的头」本身就是非官方客户端特征。
+// 客户端 IP 透传（PassthroughIP）仍按配置生效——它默认关闭，开了是用户的明确选择。
+func (c *Client) officialChatHeaders(req *http.Request, a *auth.Auth, clientIP string, meta ChatMeta) {
+	h := req.Header
+	h.Set("Content-Type", "application/json")
+	h.Set("Accept", "application/json")
+	if at := a.AccessTokenValue(); at != "" {
+		h.Set("Authorization", "Bearer "+at)
+	}
+	if a.UID != "" {
+		h.Set("X-User-Id", a.UID)
+	}
+	h.Set("X-Domain", officialDomainFor(a))
+	if a != nil && !a.IsGlobal() && a.EnterpriseID != "" {
+		h.Set("X-Enterprise-Id", a.EnterpriseID)
+		h.Set("X-Tenant-Id", a.EnterpriseID)
+	}
+	ver := c.clientVersionFor(a)
+	if c != nil && c.ClientName == "SaaS" {
+		h.Set("X-Product", "SaaS")
+	} else {
+		name := c.attributionClientName()
+		h.Set("X-Product", "SaaS")
+		h.Set("X-IDE-Type", name)
+		h.Set("X-IDE-Name", name)
+		h.Set("X-IDE-Version", ver)
+	}
+	h.Set("User-Agent", c.userAgent(a))
+	h.Set("X-Requested-With", "XMLHttpRequest")
+	h.Set("X-Agent-Intent", "craft")
+	h.Set("X-Agent-Purpose", "conversation")
+	h.Set("X-Agent-Type", "main")
+	h.Set("X-Agent-Runtime", agentRuntime)
+	h.Set("X-Stainless-Retry-Count", "0")
+	h.Set("X-Stainless-Timeout", "1200")
+	h.Set("X-Stainless-Lang", "js")
+	h.Set("X-Stainless-Package-Version", stainlessPackageVersion)
+	h.Set("X-Stainless-OS", c.stainlessOS())
+	h.Set("X-Stainless-Arch", c.stainlessArch())
+	h.Set("X-Stainless-Runtime", "node")
+	h.Set("X-Stainless-Runtime-Version", stainlessNodeVersion)
+	c.injectClientIP(req, clientIP)
+	c.injectDeviceToken(req, a)
+
+	convReqID := meta.ConversationRequestID
+	if convReqID == "" {
+		convReqID = session.NewMessageID()
+	}
+	conversationID := meta.ConversationID
+	if conversationID == "" {
+		conversationID = session.NewMessageID()
+	}
+	messageID := session.NewMessageID()
+	h.Set("X-Conversation-ID", conversationID)
+	h.Set("X-Conversation-Request-ID", convReqID)
+	h.Set("X-Conversation-Message-ID", messageID)
+	h.Set("X-Request-ID", messageID)
+	h.Set("X-Root-Request-ID", convReqID)
+}
+
+// officialDomainFor 官方 CLI 的 X-Domain：账号登录会话自带的域优先；否则按 realm
+// 回落到站点主机（国内 copilot.tencent.com，国际 www.workbuddy.ai）。
+func officialDomainFor(a *auth.Auth) string {
+	if a != nil && a.IsGlobal() {
+		return "www.workbuddy.ai"
+	}
+	if d := a.DomainValue(); d != "" {
+		return d
+	}
+	return "copilot.tencent.com"
+}
+
+// stainlessOS X-Stainless-OS：OpenAI Node SDK 取 process.platform 的映射。默认按网关
+// 主机平台（magpie / hub 同口径）；config upstream.sdk_os 可改成桌面形态（MacOS / Windows）。
+func (c *Client) stainlessOS() string {
+	if c != nil && c.SDKOS != "" {
+		return c.SDKOS
+	}
+	switch runtime.GOOS {
+	case "darwin":
+		return "MacOS"
+	case "windows":
+		return "Windows"
+	case "linux":
+		return "Linux"
+	case "freebsd":
+		return "FreeBSD"
+	}
+	return "Other:" + runtime.GOOS
+}
+
+// stainlessArch X-Stainless-Arch：同上，config upstream.sdk_arch 可覆盖（x64 / arm64）。
+func (c *Client) stainlessArch() string {
+	if c != nil && c.SDKArch != "" {
+		return c.SDKArch
+	}
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x64"
+	case "arm64":
+		return "arm64"
+	case "386":
+		return "x32"
+	case "arm":
+		return "arm"
+	}
+	return "other:" + runtime.GOARCH
 }
