@@ -80,7 +80,8 @@
   .xhead .mid { grid-column: 2 / -1; grid-row: 2; gap: 8px 14px; }
   .xhead .mid .meter { min-width: 100%; max-width: none; }
   .xhead .right { grid-column: 3; grid-row: 1; }
-  #crRows .xhead, #tkRows .xhead, #kuRows .xhead, #runRows .xhead { grid-template-columns: 16px minmax(0, 1fr) auto; }
+  #crRows .xhead, #tkRows .xhead, #kuRows .xhead, #runRows .xhead, #actRows .xhead { grid-template-columns: 16px minmax(0, 1fr) auto; }
+  #actBox > header { flex-wrap: wrap; row-gap: 8px; }
   #kuRows .xhead .mid .meter { max-width: none; }
   #crRows .xhead .mid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; }
   #crRows .xhead .mid .meter { grid-column: 1 / -1; }
@@ -208,4 +209,11 @@
   #toasts { left: 12px; right: 12px; bottom: 12px; align-items: stretch; }
   .tst { max-width: 100%; overflow-wrap: anywhere; }
   .cover-card { padding: 28px 22px 22px; border-radius: 16px; }
+
+  /* ── 卡片内滚动：手机上默认关闭（整页滚动更顺手），只给日志类长列表保留适中的内滚动 ── */
+  .scrolly, .tbl-wrap.scrolly, #accBody.scrolly, #expPad.scrolly, #compPad.scrolly { max-height: none; overflow: visible; }
+  #accBody.scrolly { padding: 0; margin: 0; }
+  .req-wrap.scrolly, #runRows.scrolly, .tbl-wrap.scrolly:has(#creditBody) { max-height: 72vh; overflow: auto; -webkit-overflow-scrolling: touch; }
+  .duo { grid-template-columns: minmax(0, 1fr); }
+  .duo .exp-nm { width: auto; }
 }

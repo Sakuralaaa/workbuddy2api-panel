@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>WorkBuddy2API</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%234a6484'/%3E%3Cpath d='M4.5 7.5 7.4 17l4.6-7.2 4.6 7.2 2.9-9.5' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235f7ba0'/%3E%3Cstop offset='1' stop-color='%233b5272'/%3E%3C/linearGradient%3E%3CclipPath id='c'%3E%3Crect x='0' y='9.4' width='32' height='14.2'/%3E%3C/clipPath%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpolyline clip-path='url(%23c)' points='5.6,4.4 11,22.6 16,12.6 21,22.6 26.4,4.4' fill='none' stroke='white' stroke-width='3.6' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
 /* ── 设计令牌（panel-v3）────────────────────────────────────────────
    参考 WorkBuddy-plugins 管理页：中性冷灰底 + 单一石板蓝强调色（只给进度 / 图表 / 焦点 /
@@ -14,6 +14,7 @@
   --bg: #111214; --surface: #18191c; --surface-2: #202125; --raise: #1d1e22;
   --line: #2b2d32; --line-soft: #24262a;
   --ink: #e8e9ec; --ink-2: #a5a9b1; --ink-3: #767a83;
+  --logo-bg: linear-gradient(145deg, #a3bad6, #6f89aa); --logo-ink: #0f1520; --logo-shadow: inset 0 1px 0 rgba(255,255,255,.28);
   --accent: #8fa8c6; --accent-soft: rgba(143,168,198,.14); --accent-line: rgba(143,168,198,.45);
   --primary: #e8e9ec; --primary-hover: #ffffff; --primary-ink: #111214;
   --ok: #6fb38f; --ok-soft: rgba(111,179,143,.13);
@@ -35,6 +36,7 @@
   --bg: #f5f6f7; --surface: #ffffff; --surface-2: #f1f2f4; --raise: #ffffff;
   --line: #e2e4e8; --line-soft: #ecedf0;
   --ink: #1b1d21; --ink-2: #565b64; --ink-3: #8a8f98;
+  --logo-bg: linear-gradient(145deg, #5f7ba0, #3b5272); --logo-ink: #ffffff; --logo-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 1px 2px rgba(20,30,45,.25);
   --accent: #4a6484; --accent-soft: rgba(74,100,132,.10); --accent-line: rgba(74,100,132,.38);
   --primary: #1d1e20; --primary-hover: #3a3c40; --primary-ink: #ffffff;
   --ok: #2f8257; --ok-soft: rgba(47,130,87,.10);
@@ -88,9 +90,9 @@ b { font-weight: 600; }
 .ln .lch.c-sys { color: var(--ink-3); }
 
 /* 任务中心 */
-.tc-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 56px 16px; color: var(--ink-3); }
-.tc-empty svg { width: 32px; height: 32px; margin-bottom: 12px; color: var(--ink-3); opacity: .8; }
-.tc-empty .t { font-weight: 600; font-size: 14px; color: var(--ink); }
+.tc-empty { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 10px; padding: 26px 16px; color: var(--ink-3); }
+.tc-empty svg { width: 22px; height: 22px; color: var(--ink-3); opacity: .8; }
+.tc-empty .t { font-weight: 500; font-size: 13px; color: var(--ink-2); }
 .tc-empty .d { font-size: 12.5px; max-width: 34em; text-align: center; }
 .sel-note { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); white-space: nowrap; flex: none; }
 .sel-note select { width: auto; height: 26px; padding: 0 24px 0 8px; font: 500 12px var(--sans); cursor: pointer; }
@@ -234,6 +236,8 @@ label.fld > .hint { display: block; font-size: 12px; color: var(--ink-3); margin
 .comp-row button { margin-left: auto; }
 .comp-row:last-child { border-bottom: none; padding-bottom: 0; }
 .comp-row:first-child { padding-top: 0; }
+.comp-row { min-width: 0; }
+.comp-row .comp-err { display: block; min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── 溢出菜单（「更多」）：<details> + 固定定位弹层，app.js 负责定位与外点关闭 ── */
 details.menu { position: relative; display: inline-block; vertical-align: middle; }
@@ -358,7 +362,7 @@ td.acts { text-align: right; white-space: nowrap; display: table-cell; }
 .acts-in > button.ghost.danger { color: var(--bad); }
 
 /* 空态 */
-.empty { padding: 40px 20px; text-align: center; color: var(--ink-3); font-size: 13px; }
+.empty { padding: 28px 20px; text-align: center; color: var(--ink-3); font-size: 13px; }
 .empty .big { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
 
 /* 骨架屏 */
@@ -638,8 +642,8 @@ body { min-height: 100vh; }
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; text-decoration: none; color: var(--ink); }
 .brand .logo { width: 28px; height: 28px; flex: none; border-radius: 8px; display: grid; place-items: center;
-  background: var(--primary); color: var(--primary-ink); box-shadow: 0 1px 2px rgba(0,0,0,.18); }
-.brand .logo svg { width: 18px; height: 18px; display: block; }
+  background: var(--logo-bg); color: var(--logo-ink); box-shadow: var(--logo-shadow); }
+.brand .logo svg { width: 100%; height: 100%; display: block; }
 .brand .name { font-weight: 650; font-size: 15px; letter-spacing: -.015em; white-space: nowrap; }
 .tnav { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 11px;
   background: var(--surface-2); border: 1px solid var(--line-soft); overflow-x: auto; scrollbar-width: none; max-width: 100%; }
@@ -692,16 +696,18 @@ body { min-height: 100vh; }
   border: 1px solid var(--line); box-shadow: var(--shadow-lg); position: relative; overflow: hidden; }
 .cover-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px;
   background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: .8; }
-.cover-logo { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; margin-bottom: 18px;
-  background: var(--primary); color: var(--primary-ink); box-shadow: 0 8px 22px -8px rgba(0,0,0,.45); }
-.cover-logo svg { width: 30px; height: 30px; }
+.cover-card { text-align: center; }
+.cover-card form, .cover label.fld { text-align: left; }
+.cover-logo { width: 56px; height: 56px; border-radius: 15px; display: grid; place-items: center; margin: 0 auto 18px;
+  background: var(--logo-bg); color: var(--logo-ink); box-shadow: var(--logo-shadow), 0 10px 24px -10px color-mix(in srgb, var(--accent) 70%, transparent); }
+.cover-logo svg { width: 100%; height: 100%; display: block; }
 .cover h1 { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
-.cover .lead { color: var(--ink-3); font-size: 13px; margin: 6px 0 22px; line-height: 1.6; }
+.cover .lead { color: var(--ink-3); font-size: 13px; margin: 6px 0 24px; line-height: 1.6; }
 .cover label.fld { margin-bottom: 12px; }
 .cover input { height: 40px; font-size: 14px; border-radius: 10px; }
 .cover .go { width: 100%; height: 40px; border-radius: 10px; font-size: 14px; margin-top: 4px; }
 .cover .err { color: var(--bad); font-size: 12.5px; margin-top: 10px; }
-.cover .foot { display: flex; align-items: center; gap: 8px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line-soft);
+.cover .foot { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line-soft);
   color: var(--ink-3); font-size: 12px; }
 .cover .foot .grow { flex: 1; }
 .cover .foot button { height: 28px; }
@@ -891,6 +897,46 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
   .info-grid { grid-template-columns: 1fr; }
 }
 
+
+/* ── 限时活动 ─────────────────────────────────────────────────────── */
+.newbadge { display: inline-flex; align-items: center; height: 18px; padding: 0 7px; margin-left: 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; color: #fff; background: var(--bad); letter-spacing: .01em; }
+.tnav a .nbadge { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--bad); color: #fff;
+  font-size: 10.5px; font-weight: 700; display: inline-grid; place-items: center; margin-left: -2px; }
+#actRows .xhead { grid-template-columns: 18px minmax(180px, 1fr) minmax(0, 3fr) 150px; }
+.act-chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 7px; font-size: 12px;
+  background: var(--surface-2); border: 1px solid var(--line-soft); color: var(--ink-2); white-space: nowrap; }
+.act-chip b { color: var(--ink); font-weight: 600; }
+.act-chip .new { color: var(--bad); font-weight: 700; font-size: 10.5px; }
+.act-chip .dl { color: var(--ink-3); }
+.act-sum { font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
+.act-sum b { color: var(--warn); font-weight: 600; }
+.act-hd { display: flex; align-items: center; gap: 8px; margin: 14px 0 8px; font-size: 12.5px; font-weight: 600; }
+.act-hd:first-child { margin-top: 6px; }
+.act-hd .dl { font-weight: 400; color: var(--ink-3); font-size: 12px; }
+.act-hd .grow { flex: 1; }
+.act-kind { font-size: 11.5px; color: var(--ink-3); }
+
+/* ── 卡片内滚动：长列表在卡片内滚动，页面保持浅；短内容不出滚动条 ───────── */
+.scrolly { max-height: var(--sh, clamp(440px, 66vh, 700px)); overflow: auto; overscroll-behavior: contain; }
+.scrolly::-webkit-scrollbar { width: 8px; height: 8px; }
+.scrolly::-webkit-scrollbar-thumb { border-width: 2px; }
+.scrolly .acc th { position: sticky; top: 0; z-index: 2; background: var(--surface); }
+#accBody.scrolly { --sh: clamp(620px, 76vh, 820px); padding: 3px 6px 8px 3px; margin: -3px -6px -8px -3px; }
+#expPad.scrolly, #compPad.scrolly { --sh: clamp(300px, 46vh, 460px); }
+#mlBody { }
+.tbl-wrap.scrolly:has(#mlBody) { --sh: 360px; }
+.req-wrap.scrolly { --sh: clamp(440px, 68vh, 720px); }
+#logBox { max-height: clamp(360px, 60vh, 640px); }
+.duo { display: grid; grid-template-columns: repeat(auto-fit, minmax(520px, 1fr)); gap: 0 20px; align-items: start; }
+.duo > .box { min-width: 0; }
+.duo.r21 { grid-template-columns: minmax(0, 2.2fr) minmax(300px, 1fr); }
+@media (max-width: 1100px) { .duo.r21 { grid-template-columns: minmax(0, 1fr); } }
+.duo .exp-nm { width: 7.5em; }
+.jobs-all > header { flex-wrap: wrap; padding-top: 10px; padding-bottom: 10px; row-gap: 8px; border-bottom: 0; }
+.jobbar.inhead { margin-left: 12px; }
+.kname-sm { font-size: 11.5px; display: flex; align-items: center; gap: 4px; }
+.kname-sm svg { width: 12px; height: 12px; flex: none; opacity: .8; }
 </style>
 <link rel="stylesheet" href="mobile.css">
 </head>
@@ -899,19 +945,17 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
 <div class="cover" id="keyVeil" data-lock="1">
   <div class="cover-card">
     <div class="cover-logo" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7.5 7.4 17l4.6-7.2 4.6 7.2 2.9-9.5"/></svg>
+      <svg viewBox="-1.5 -1.5 35 35" aria-hidden="true"><defs><clipPath id="wbLogoClipCover"><rect x="0" y="9" width="32" height="15"/></clipPath></defs><polyline clip-path="url(#wbLogoClipCover)" points="5.2,4 10.8,23 16,12.6 21.2,23 26.8,4" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linejoin="round"/></svg>
     </div>
     <h1>WorkBuddy2API</h1>
-    <div class="lead">输入管理密钥进入控制台。密钥在服务端校验，所有管理接口都需要它。</div>
+    <div class="lead">输入管理密钥进入控制台</div>
     <form onsubmit="return false" autocomplete="off">
       <label class="fld"><span class="lb">管理密钥</span>
-        <input type="password" id="keyInput" placeholder="admin_key（未设置时为 api_key）" autocomplete="current-password"></label>
+        <input type="password" id="keyInput" placeholder="config.json → admin_key" title="未设置 admin_key 时使用 api_key；密钥在服务端校验" autocomplete="current-password"></label>
       <button class="primary go" id="btnKey" type="submit">进入面板</button>
     </form>
     <div class="err" id="keyErr" hidden>密钥不正确，请重试。</div>
     <div class="foot">
-      <span id="coverHint">config.json → admin_key</span>
-      <span class="grow"></span>
       <button class="xs ghost" id="btnCoverTheme" type="button">切换明暗</button>
     </div>
   </div>
@@ -920,7 +964,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
 <div class="app" id="app">
   <header class="topbar">
     <a class="brand" href="#accounts" aria-label="WorkBuddy2API">
-      <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7.5 7.4 17l4.6-7.2 4.6 7.2 2.9-9.5"/></svg></span>
+      <span class="logo" aria-hidden="true"><svg viewBox="-1.5 -1.5 35 35" aria-hidden="true"><defs><clipPath id="wbLogoClipBrand"><rect x="0" y="9" width="32" height="15"/></clipPath></defs><polyline clip-path="url(#wbLogoClipBrand)" points="5.2,4 10.8,23 16,12.6 21.2,23 26.8,4" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linejoin="round"/></svg></span>
       <span class="name">WorkBuddy2API</span>
     </a>
     <nav class="tnav" id="tnav" aria-label="主导航">
@@ -1005,9 +1049,8 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
             <div id="addPick">
               <div class="realm-row">
                 <label class="realm-opt"><input type="radio" name="addRealm" value="cn" checked> 国内版（CN）</label>
-                <label class="realm-opt"><input type="radio" name="addRealm" value="global"> 国际版（Global）</label>
+                <label class="realm-opt"><input type="radio" name="addRealm" value="global"> 国际版（Global）<span class="tip" title="国际版登录后，网关自动完成注册地区、激活与试用额度领取" aria-label="国际版登录后，网关自动完成注册地区、激活与试用额度领取"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></label>
               </div>
-              <div class="hint">国际版登录后，网关自动完成注册地区、激活与试用额度领取。</div>
             </div>
             <div id="addLoad" class="state" hidden><span class="dots">正在获取授权链接</span></div>
             <div id="addReady" hidden>
@@ -1024,8 +1067,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
             </div>
           </div>
           <div class="addcol" id="addTabImport">
-            <h4><span class="n">2</span>导入文件</h4>
-            <div class="hint" style="margin-bottom:10px">支持 cockpit tools 导出的账号数组 JSON、单个 token JSON，以及桌面端 <code>.info</code> 文件。</div>
+            <h4><span class="n">2</span>导入文件<span class="tip" title="支持 cockpit tools 导出的账号数组 JSON、单个 token JSON，以及桌面端 .info 文件。" aria-label="支持 cockpit tools 导出的账号数组 JSON、单个 token JSON，以及桌面端 .info 文件。"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h4>
             <input type="file" id="importFile" accept=".json,.info,application/json" style="margin-bottom:8px">
             <div id="importDone" class="state ok" hidden></div>
             <div id="importErr" class="state err" hidden></div>
@@ -1034,7 +1076,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
         <div class="tabs" id="addTabs"><button class="tab on" data-tab="login">浏览器登录</button><button class="tab" data-tab="import">导入</button></div>
       </div>
 
-      <div class="acards" id="accBody"><div class="empty cards-empty"><span class="dots">加载中</span></div></div>
+      <div class="acards scrolly" id="accBody"><div class="empty cards-empty"><span class="dots">加载中</span></div></div>
 
       <div class="box" style="margin-top:24px">
         <header>
@@ -1042,7 +1084,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
           <span class="grow"></span>
           <span class="note" id="mlNote"></span>
         </header>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap scrolly">
         <table class="acc">
           <thead><tr>
             <th>模型</th><th>域</th><th>状态</th><th>可选 / 总数</th>
@@ -1064,6 +1106,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
         <div class="stat"><div class="v" id="crPacks">-</div><div class="k">积分包（已查询）</div></div>
       </div>
 
+      <div class="duo">
       <div class="box" id="expBox">
         <header>
           <h3>积分到期提醒<span class="tip" title="按最近到期批次估算 · 日均需耗 = 批次剩余 ÷ 距到期天数 · 上游按失效时刻先后自动优先扣减（FEFO）" aria-label="按最近到期批次估算"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3>
@@ -1072,7 +1115,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
           <button class="xs" id="btnExpFold" aria-expanded="true">收起</button>
           <button class="xs" id="btnExp">检查</button>
         </header>
-        <div class="pad" id="expPad"><div id="expList"></div></div>
+        <div class="pad scrolly" id="expPad"><div id="expList"></div></div>
       </div>
 
       <div class="box" id="compBox" hidden>
@@ -1083,28 +1126,30 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
           <button class="xs" id="btnCompRefresh">检查</button>
           <button class="xs" id="btnCompClaimAll">全部领取</button>
         </header>
-        <div class="pad"><div id="compList"></div></div>
+        <div class="pad scrolly" id="compPad"><div id="compList"></div></div>
+      </div>
       </div>
 
       <div class="box">
         <header>
-          <h3>账号积分<span class="hint">每个账号一行，点开看积分构成与逐包明细</span></h3>
+          <h3>账号积分</h3>
           <span class="grow"></span>
           <input type="search" id="crQ" class="xs" placeholder="搜索备注 / 昵称 / UID" style="width:200px;height:28px">
           <span class="note" id="crNote"></span>
           <button class="xs" id="btnCrFetch" title="逐账号实时查询上游积分包（账号多时较慢）">查询积分构成</button>
           <button class="xs" data-job-all="balance">刷新全部余额</button>
         </header>
-        <div class="xrows" id="crRows"></div>
+        <div class="xrows scrolly" id="crRows"></div>
       </div>
 
+      <div class="duo">
       <div class="box">
         <header>
-          <h3>积分到期分布</h3>
+          <h3>积分到期分布<span class="tip" title="按批次到期日聚合，颜色区分账号" aria-label="按批次到期日聚合"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3>
           <span class="grow"></span>
-          <span class="note">按批次到期日聚合，颜色区分账号</span>
+          
         </header>
-        <div class="pad"><div id="pkExpiry"><div class="empty">点上方「查询积分构成」后，按批次到期日聚合展示</div></div></div>
+        <div class="pad"><div id="pkExpiry"><div class="empty">尚未查询积分构成</div></div></div>
       </div>
 
       <div class="box">
@@ -1118,7 +1163,8 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
           </select>
           <button class="xs" id="btnPk">刷新</button>
         </header>
-        <div class="pad"><div class="pk-grid" id="pkSummary"><div class="empty" style="grid-column:1/-1">还没有查询积分包，点「刷新」逐账号拉取</div></div></div>
+        <div class="pad scrolly"><div class="pk-grid" id="pkSummary"><div class="empty" style="grid-column:1/-1">尚未查询积分包</div></div></div>
+      </div>
       </div>
       <div id="pkDetail"></div>
     </section>
@@ -1138,14 +1184,14 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
           <div class="kpis" id="kuStats"></div>
           <div class="pad">
             <div class="uschart">
-              <div class="uschart-hd"><span class="lb">每日请求</span><span class="note">按密钥堆叠</span><span class="grow"></span><span class="legend" id="kuLegend"></span></div>
+              <div class="uschart-hd"><span class="lb">每日请求</span><span class="grow"></span><span class="legend" id="kuLegend"></span></div>
               <div id="kuChart" class="uschart-body"></div>
             </div>
           </div>
         </div>
         <div class="box">
-          <header><h3>密钥明细<span class="hint">点开看按日 / 按模型拆分</span></h3><span class="grow"></span></header>
-          <div class="xrows" id="kuRows"></div>
+          <header><h3>密钥明细</h3><span class="grow"></span></header>
+          <div class="xrows scrolly" id="kuRows"></div>
         </div>
       </div>
       <div id="usPoolPane" hidden>
@@ -1193,7 +1239,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
             </select>
           </label>
         </header>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap scrolly">
           <table class="acc zebra">
             <thead id="usDimHead"></thead>
             <tbody id="usDimBody"></tbody>
@@ -1212,7 +1258,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
           <span class="note" id="usCreditNote">—</span>
         </header>
         <div class="kpis k4" id="usCreditStats"></div>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap scrolly">
           <table class="acc zebra">
             <thead id="usCreditHead"></thead>
             <tbody id="usCreditBody"></tbody>
@@ -1275,7 +1321,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
           <span class="note" id="mdCount"></span>
           <button class="xs ghost" id="mdReset" title="清空全部筛选条件">重置</button>
         </div>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap scrolly">
         <table class="acc md">
           <thead><tr><th class="mark" aria-hidden="true"></th><th>模型</th><th>积分倍率</th><th>默认档</th><th>支持的思考档位</th><th>上下文长度</th><th>最大输出</th><th>启用</th><th class="c-acts">测试</th></tr></thead>
           <tbody id="mdBody"></tbody>
@@ -1303,7 +1349,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
             <button class="xs primary" id="btnKeyCreate">创建密钥</button>
           </div>
         </header>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap scrolly">
           <table class="acc">
             <thead><tr><th>名称</th><th>密钥</th><th>状态</th><th class="num">近 7 天请求</th><th class="num">近 7 天 Token</th><th>创建时间</th><th>最近使用</th><th class="c-acts"></th></tr></thead>
             <tbody id="keyBody"></tbody>
@@ -1314,14 +1360,10 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
 
     <!-- ══ 任务管理 ══ -->
     <section class="view" id="view-tasks" hidden>
-      <div class="box">
+      <div class="box jobs-all">
         <header>
-          <h3>全部账号执行<span class="hint">立即对所有符合条件的账号跑一次（异步），结果写入任务记录</span></h3>
-          <span class="grow"></span>
-          <span class="note" id="jobActive"></span>
-        </header>
-        <div class="pad">
-          <div class="jobbar" id="jobAllBar">
+          <h3>全部账号执行<span class="tip" title="立即对所有符合条件的账号跑一次（异步），结果写入任务记录" aria-label="立即对所有符合条件的账号跑一次（异步），结果写入任务记录"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3>
+          <div class="jobbar inhead" id="jobAllBar">
             <button class="xs" data-job-all="checkin">每日签到</button>
             <button class="xs" data-job-all="streak">连登管家</button>
             <button class="xs" data-job-all="travel">猫猫旅行</button>
@@ -1332,18 +1374,32 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
             <button class="xs" data-job-all="keepalive">Token 保活</button>
             <button class="xs" data-job-all="task_sweep">任务补领</button>
             <button class="xs" data-job-all="growth">成长任务队列</button>
+            <button class="xs" data-job-all="campaign">限时活动</button>
           </div>
-        </div>
+          <span class="grow"></span>
+          <span class="note" id="jobActive"></span>
+        </header>
+      </div>
+
+      <div class="box" id="actBox">
+        <header>
+          <h3>限时活动<span class="tip" title="星巴克协作、记者节等限时运营活动。候选来源：内置已知活动 + schedule.activity_codes + 从成长任务清单里扫到的活动 code；逐账号读 /portal/activity/tasks，已下发的就列在这里。对话 / 专家 / 技能 / 灵感类任务自动完成并领奖，需真人或识别不了的任务标为「需手动」。" aria-label="星巴克协作、记者节等限时运营活动。候选来源：内置已知活动 + schedule.activity_codes + 从成长任务清单里扫到的活动 code；逐账号读 /portal/activity/tasks，已下发的就列在这里。对话 / 专家 / 技能 / 灵感类任务自动完成并领奖，需真人或识别不了的任务标为「需手动」。"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span><span class="newbadge" id="actBadge" hidden></span></h3>
+          <span class="grow"></span>
+          <span class="note" id="actNote"></span>
+          <button class="xs" id="btnActDiscover">发现新活动</button>
+          <button class="xs primary" id="btnActRun">全部执行</button>
+        </header>
+        <div class="xrows scrolly" id="actRows"></div>
       </div>
 
       <div class="box">
         <header>
-          <h3>账号任务<span class="hint">每个账号一行，点开看成长任务、单项执行与任务记录</span></h3>
+          <h3>账号任务</h3>
           <span class="grow"></span>
           <input type="search" id="tkQ" class="xs" placeholder="搜索备注 / 昵称 / UID" style="width:200px;height:28px">
           <span class="note" id="tkNote"></span>
         </header>
-        <div class="xrows" id="tkRows"></div>
+        <div class="xrows scrolly" id="tkRows"></div>
       </div>
 
       <div class="box">
@@ -1368,20 +1424,19 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
             <circle cx="35" cy="33" r="8"/><path d="m40 38 5 5"/>
           </svg>
           <div class="t">还没有扫描过</div>
-          <div class="d">扫描所有账号的成长任务与开学季待办，把没做的排成一列，一键执行。</div>
         </div>
-        <div id="qcList"></div>
+        <div class="scrolly" id="qcList"></div>
       </div>
 
       <div class="box">
         <header>
-          <h3>运行历史<span class="hint">每一轮批量执行（排程到点 / 手动）的汇总，点开看逐账号结果</span></h3>
+          <h3>运行历史<span class="tip" title="每一轮批量执行（排程到点 / 手动）的汇总，点开看逐账号结果" aria-label="每一轮批量执行（排程到点 / 手动）的汇总，点开看逐账号结果"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3>
           <span class="grow"></span>
           <span class="note" id="runNote"></span>
           <button class="xs" id="btnRunsReload">刷新</button>
           <button class="xs ghost danger" id="btnRunsClear">清空记录</button>
         </header>
-        <div class="xrows" id="runRows"></div>
+        <div class="xrows scrolly" id="runRows"></div>
       </div>
     </section>
 
@@ -1401,74 +1456,82 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
 
       <form id="cfgForm">
         <div class="box">
-          <header><h3>调度设置</h3><span class="grow"></span><span class="note">北京时间整点 · 保存后立即生效</span></header>
+          <header><h3>调度设置<span class="tip" title="北京时间整点 · 保存后立即生效 · 与下方系统配置共用底部保存按钮" aria-label="北京时间整点 · 保存后立即生效 · 与下方系统配置共用底部保存按钮"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3><span class="grow"></span></header>
           <div class="pad">
-            <div class="switch" style="padding-top:0"><span class="lb">调度总开关<span class="hint" style="display:block;font-weight:400">关闭后所有定时任务与任务补领都停止自动运行（手动执行照常可用；余额后台刷新不受影响）</span></span>
+            <div class="switch" style="padding-top:0"><span class="lb">调度总开关<span class="tip" title="关闭后所有定时任务与任务补领都停止自动运行（手动执行照常可用；余额后台刷新不受影响）" aria-label="关闭后所有定时任务与任务补领都停止自动运行（手动执行照常可用；余额后台刷新不受影响）"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
               <input type="checkbox" name="schedule_enabled"></div>
             <div class="hr"></div>
             <div class="sched-grid">
-              <div class="sjob"><div class="switch"><span class="lb">每日签到</span><input type="checkbox" name="checkin_enabled"></div>
+              <div class="sjob"><div class="switch"><span class="lb">每日签到<span class="tip" title="签到 + 余额刷新解冻，随后跑连登管家（补签 / 礼包 / 补偿 / 兑换 / 抽奖）" aria-label="签到 + 余额刷新解冻，随后跑连登管家（补签 / 礼包 / 补偿 / 兑换 / 抽奖）"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span><input type="checkbox" name="checkin_enabled"></div>
                 <label class="fld"><span class="lb">时点（小时，逗号分隔）</span><input name="checkin_hours" placeholder="9, 21"></label>
-                <div class="hint">签到 + 余额刷新解冻，随后跑连登管家（补签 / 礼包 / 补偿 / 兑换 / 抽奖）</div><div class="nx" data-next="checkin"></div></div>
-              <div class="sjob"><div class="switch"><span class="lb">猫猫旅行</span><input type="checkbox" name="travel_enabled"></div>
+                <div class="nx" data-next="checkin"></div></div>
+              <div class="sjob"><div class="switch"><span class="lb">猫猫旅行<span class="tip" title="派出 / 领奖 / 无猫领养；开启后用多余能量开盲盒" aria-label="派出 / 领奖 / 无猫领养；开启后用多余能量开盲盒"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span><input type="checkbox" name="travel_enabled"></div>
                 <label class="fld"><span class="lb">时点</span><input name="travel_hours" placeholder="9, 21"></label>
                 <div class="switch" style="padding:4px 0 0"><span class="lb" style="font-weight:400">旅行结束后开 Buddy 盲盒</span><input type="checkbox" name="travel_open_boxes"></div>
-                <div class="hint">派出 / 领奖 / 无猫领养；开启后用多余能量开盲盒</div><div class="nx" data-next="travel"></div></div>
-              <div class="sjob"><div class="switch"><span class="lb">活跃上报</span><input type="checkbox" name="activity_enabled"></div>
+                <div class="nx" data-next="travel"></div></div>
+              <div class="sjob"><div class="switch"><span class="lb">活跃上报<span class="tip" title="点亮连登 + 解锁领养前置（国内 + 国际）" aria-label="点亮连登 + 解锁领养前置（国内 + 国际）"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span><input type="checkbox" name="activity_enabled"></div>
                 <label class="fld"><span class="lb">时点</span><input name="activity_hours" placeholder="10"></label>
-                <div class="hint">点亮连登 + 解锁领养前置（国内 + 国际）</div><div class="nx" data-next="activity"></div></div>
-              <div class="sjob"><div class="switch"><span class="lb">夜猫子</span><input type="checkbox" name="blackcat_enabled"></div>
+                <div class="nx" data-next="activity"></div></div>
+              <div class="sjob"><div class="switch"><span class="lb">夜猫子<span class="tip" title="23:00–08:00 窗口内 glm-5.2 对话补足 black_cat" aria-label="23:00–08:00 窗口内 glm-5.2 对话补足 black_cat"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span><input type="checkbox" name="blackcat_enabled"></div>
                 <label class="fld"><span class="lb">时点</span><input name="blackcat_hours" placeholder="23"></label>
-                <div class="hint">23:00–08:00 窗口内 glm-5.2 对话补足 black_cat</div><div class="nx" data-next="blackcat"></div></div>
-              <div class="sjob"><div class="switch"><span class="lb">Token 保活</span><input type="checkbox" name="keepalive_enabled"></div>
+                <div class="nx" data-next="blackcat"></div></div>
+              <div class="sjob"><div class="switch"><span class="lb">Token 保活<span class="tip" title="刷新 token；连续 3 次 session dead 自动禁用" aria-label="刷新 token；连续 3 次 session dead 自动禁用"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span><input type="checkbox" name="keepalive_enabled"></div>
                 <label class="fld"><span class="lb">时点</span><input name="keepalive_hours" placeholder="22"></label>
-                <div class="hint">刷新 token；连续 3 次 session dead 自动禁用</div><div class="nx" data-next="keepalive"></div></div>
-              <div class="sjob"><div class="switch"><span class="lb">成长任务自动执行</span><input type="checkbox" name="growth_enabled"></div>
+                <div class="nx" data-next="keepalive"></div></div>
+              <div class="sjob"><div class="switch"><span class="lb">成长任务自动执行<span class="tip" title="到点自动「扫描 + 执行全部待办」（Sequential 链零点解锁，建议零点后）" aria-label="到点自动「扫描 + 执行全部待办」（Sequential 链零点解锁，建议零点后）"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span><input type="checkbox" name="growth_enabled"></div>
                 <label class="fld"><span class="lb">时点</span><input name="growth_hours" placeholder="1"></label>
-                <div class="hint">到点自动「扫描 + 执行全部待办」（Sequential 链零点解锁，建议零点后）</div><div class="nx" data-next="growth"></div></div>
-              <div class="sjob"><div class="switch"><span class="lb">任务补领清扫</span><input type="checkbox" name="task_sweep_enabled"></div>
+                <div class="nx" data-next="growth"></div></div>
+              <div class="sjob"><div class="switch"><span class="lb">限时活动<span class="tip" title="自动发现星巴克 / 记者节等限时活动，完成可纯 API 完成的任务并领奖；需真人完成的只列出" aria-label="自动发现星巴克 / 记者节等限时活动，完成可纯 API 完成的任务并领奖；需真人完成的只列出"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span><input type="checkbox" name="activity_tasks"></div>
+                <label class="fld"><span class="lb">时点</span><input name="activity_tasks_hours" placeholder="11, 20"></label>
+                <label class="fld"><span class="lb">追加活动 code</span><input name="activity_codes" placeholder="可留空，自动发现"></label>
+                <div class="nx" data-next="campaign"></div></div>
+              <div class="sjob"><div class="switch"><span class="lb">任务补领清扫<span class="tip" title="把「已达标未领奖」的成长任务领掉，只发幂等 accept / claim（#174）" aria-label="把「已达标未领奖」的成长任务领掉，只发幂等 accept / claim（#174）"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span><input type="checkbox" name="task_sweep_enabled"></div>
                 <label class="fld"><span class="lb">清扫间隔（分钟）</span><input name="task_sweep_minutes" type="number" min="1" placeholder="15"></label>
-                <div class="hint">把「已达标未领奖」的成长任务领掉，只发幂等 accept / claim（#174）</div></div>
-              <div class="sjob"><div class="switch"><span class="lb">后台刷新余额</span><input type="checkbox" name="balance_refresh_enabled"></div>
-                <label class="fld"><span class="lb">刷新间隔（分钟）</span><input name="balance_refresh_minutes" type="number" min="1" placeholder="5"></label>
-                <div class="hint">选号依据，不受调度总开关影响</div></div>
-              <div class="sjob wide"><div class="switch"><span class="lb">国际版每日活跃</span><input type="checkbox" name="intl_daily_enabled"></div>
+                </div>
+              <div class="sjob"><div class="switch"><span class="lb">后台刷新余额<span class="tip" title="选号依据，不受调度总开关影响" aria-label="选号依据，不受调度总开关影响"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span><input type="checkbox" name="balance_refresh_enabled"></div>
+                <label class="fld"><span class="lb">刷新间隔（分钟）</span><input name="balance_refresh_minutes" type="number" min="1" placeholder="5"></label></div>
+              <div class="sjob wide"><div class="switch"><span class="lb">国际版每日活跃<span class="tip" title="只对国际版账号：桌面通道依次尝试上面的模型发一条对话，网页通道再开一次云端会话；当天成功一次后后续时点自动跳过" aria-label="只对国际版账号：桌面通道依次尝试上面的模型发一条对话，网页通道再开一次云端会话；当天成功一次后后续时点自动跳过"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span><input type="checkbox" name="intl_daily_enabled"></div>
                 <div class="sjob-fields">
                   <label class="fld"><span class="lb">时点</span><input name="intl_daily_hours" placeholder="10, 20"></label>
                   <label class="fld"><span class="lb">桌面通道模型（依次尝试）</span><input name="intl_daily_models" placeholder="deepseek-v4.1-flash"></label>
                   <label class="fld"><span class="lb">对话内容</span><input name="intl_daily_prompt" placeholder="Hi"></label>
                   <div class="switch sjob-inline"><span class="lb" style="font-weight:400">同时跑网页通道（云端会话）</span><input type="checkbox" name="intl_daily_web"></div>
                 </div>
-                <div class="hint">只对国际版账号：桌面通道依次尝试上面的模型发一条对话，网页通道再开一次云端会话；当天成功一次后后续时点自动跳过</div><div class="nx" data-next="intl_daily"></div></div>
+                <div class="nx" data-next="intl_daily"></div></div>
             </div>
             <div class="hr" style="margin-top:16px"></div>
-            <div class="switch"><span class="lb">保号任务覆盖已禁用账号<span class="hint" style="display:block;font-weight:400">打开后已禁用的账号仍签到 / 活跃上报 / 保活 / 刷新余额（依旧不参与选号）；只想让单个账号临时让位请用账号卡片的「暂停选号」</span></span>
+            <div class="switch"><span class="lb">保号任务覆盖已禁用账号<span class="tip" title="打开后已禁用的账号仍签到 / 活跃上报 / 保活 / 刷新余额（依旧不参与选号）；只想让单个账号临时让位请用账号卡片的「暂停选号」" aria-label="打开后已禁用的账号仍签到 / 活跃上报 / 保活 / 刷新余额（依旧不参与选号）；只想让单个账号临时让位请用账号卡片的「暂停选号」"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
               <input type="checkbox" name="include_disabled_in_tasks"></div>
           </div>
         </div>
 
+        <div class="duo r21">
         <div class="box">
           <header><h3>服务与密钥</h3><span class="grow"></span><span class="note" id="cfgPath"></span></header>
           <div class="pad">
             <div class="grid3">
-              <label class="fld"><span class="lb">监听地址</span>
-                <input name="listen" placeholder=":7863">
-                <span class="hint">改动需重启进程</span></label>
-              <label class="fld"><span class="lb">调用密钥 api_key</span>
+              <label class="fld"><span class="lb">监听地址<span class="tip" title="改动需重启进程" aria-label="改动需重启进程"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <input name="listen" placeholder=":7863"></label>
+              <label class="fld"><span class="lb">调用密钥 api_key<span class="tip" title="/v1/* 调用；另可在「密钥管理」创建多个" aria-label="/v1/* 调用；另可在「密钥管理」创建多个"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
                 <div class="inline"><input name="api_key" id="cfgKey" type="password" placeholder="留空 = 不修改">
-                <button type="button" class="xs" id="btnEye">显示</button></div>
-                <span class="hint">/v1/* 调用；另可在「密钥管理」创建多个</span></label>
-              <label class="fld"><span class="lb">管理密钥 admin_key</span>
+                <button type="button" class="xs" id="btnEye">显示</button></div></label>
+              <label class="fld"><span class="lb">管理密钥 admin_key<span class="tip" title="登录封面与所有管理接口使用；立即生效" aria-label="登录封面与所有管理接口使用；立即生效"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
                 <div class="inline"><input name="admin_key" id="cfgAdminKey" type="password" placeholder="留空 = 回落 api_key">
-                <button type="button" class="xs" id="btnEyeAdmin">显示</button></div>
-                <span class="hint">登录封面与所有管理接口使用；立即生效</span></label>
+                <button type="button" class="xs" id="btnEyeAdmin">显示</button></div></label>
             </div>
 <div class="grid3">
-            <label class="fld"><span class="lb">单账号明细默认展示条数</span>
-              <input name="package_detail_limit" type="number" min="1" placeholder="5">
-              <span class="hint">积分构成按最早到期展示，其余未用完包聚合</span></label>
+            <label class="fld"><span class="lb">单账号明细默认展示条数<span class="tip" title="积分构成按最早到期展示，其余未用完包聚合" aria-label="积分构成按最早到期展示，其余未用完包聚合"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+              <input name="package_detail_limit" type="number" min="1" placeholder="5"></label>
             </div>
           </div>
+        </div>
+        <div class="box">
+          <header><h3>日志<span class="tip" title="归档开关、保留天数与容量上限（logging.request_archive_*）需手工编辑配置文件。" aria-label="归档开关、保留天数与容量上限（logging.request_archive_*）需手工编辑配置文件。"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3></header>
+          <div class="pad">
+            <div class="switch"><span class="lb">记录调用来源（客户端 IP / User-Agent）<span class="tip" title="开启后，「运行日志」页的请求记录会显示每次调用来自哪个 IP、用什么客户端； 关闭则归档与面板都不再出现来源信息。改动即时生效，无需重启。" aria-label="开启后，「运行日志」页的请求记录会显示每次调用来自哪个 IP、用什么客户端； 关闭则归档与面板都不再出现来源信息。改动即时生效，无需重启。"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+              <input type="checkbox" name="request_client_info"></div>
+          </div>
+        </div>
         </div>
 
         <div class="box">
@@ -1489,19 +1552,16 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
                 </select></label>
             </div>
             <div class="grid3">
-              <label class="fld"><span class="lb">国内版账号顺序（UID）</span>
+              <label class="fld"><span class="lb">国内版账号顺序（UID）<span class="tip" title="按地区独立热生效；未列出的账号按 UID 排序追加。指针按地区和模型分别保存。会话粘性、模型成本分层优先；有序策略等待冷却恢复，不提前试探。临时重试或在途占满不推进顺序耗尽的主账号。闲置与快过期积分权重仅用于加权随机。" aria-label="账号顺序说明"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
                 <input name="domestic_account_order" placeholder="uid1, uid2, uid3"></label>
               <label class="fld"><span class="lb">国际版账号顺序（UID）</span>
                 <input name="international_account_order" placeholder="uid1, uid2, uid3"></label>
             </div>
-            <div class="hint block">按地区独立热生效；未列出的账号按 UID 排序追加。指针按地区和模型分别保存。会话粘性、模型成本分层优先；有序策略等待冷却恢复，不提前试探。临时重试或在途占满不推进顺序耗尽的主账号。闲置与快过期积分权重仅用于加权随机。</div>
             <div class="grid3">
-              <label class="fld"><span class="lb">单账号最大在途</span>
-                <input name="max_in_flight" type="number" min="0" placeholder="3">
-                <span class="hint">0 = 不限制</span></label>
-              <label class="fld"><span class="lb">国际版在途上限</span>
-                <input name="max_in_flight_global" type="number" min="1" placeholder="2">
-                <span class="hint">global 域风控更紧，默认 2</span></label>
+              <label class="fld"><span class="lb">单账号最大在途<span class="tip" title="0 = 不限制" aria-label="0 = 不限制"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <input name="max_in_flight" type="number" min="0" placeholder="3"></label>
+              <label class="fld"><span class="lb">国际版在途上限<span class="tip" title="global 域风控更紧，默认 2" aria-label="global 域风控更紧，默认 2"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <input name="max_in_flight_global" type="number" min="1" placeholder="2"></label>
               <label class="fld"><span class="lb">连续失败熔断阈值</span>
                 <input name="breaker_threshold" type="number" min="1" placeholder="3"></label>
             </div>
@@ -1516,9 +1576,8 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
             <div class="grid3">
               <label class="fld"><span class="lb">熔断退避上限</span>
                 <input name="breaker_cooldown_max" placeholder="6h"></label>
-              <label class="fld"><span class="lb">连败降权阈值</span>
-                <input name="degrade_threshold" type="number" min="1" placeholder="5">
-                <span class="hint">未知错误连败 N 次临时出池</span></label>
+              <label class="fld"><span class="lb">连败降权阈值<span class="tip" title="未知错误连败 N 次临时出池" aria-label="未知错误连败 N 次临时出池"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <input name="degrade_threshold" type="number" min="1" placeholder="5"></label>
               <label class="fld"><span class="lb">连败降权时长</span>
                 <input name="degrade_cooldown" placeholder="10m"></label>
             </div>
@@ -1531,18 +1590,14 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
                 <input name="idle_weight_max" type="number" step="0.1" placeholder="5"></label>
             </div>
             <div class="grid3">
-              <label class="fld"><span class="lb">成本探索窗口</span>
-                <input name="cost_explore_interval" placeholder="30m">
-                <span class="hint">垄断破除：免费层垄断时定期搭车探索未知号；0 关停</span></label>
-              <label class="fld"><span class="lb">积分保底</span>
-                <input name="credit_floor" type="number" min="0" placeholder="100">
-                <span class="hint">余额低于此值不再接实测收费模型（保住免费模型可用）；0 关闭</span></label>
-              <label class="fld"><span class="lb">快过期路由窗口</span>
-                <input name="expiring_soon" placeholder="168h">
-                <span class="hint">窗口内有快过期批次的账号选号权重 ×3（不排序、与金额无关）；0 关闭</span></label>
-              <label class="fld"><span class="lb">会话粘性 TTL</span>
-                <input name="ttl" placeholder="30m">
-                <span class="hint">改动需重启进程</span></label>
+              <label class="fld"><span class="lb">成本探索窗口<span class="tip" title="垄断破除：免费层垄断时定期搭车探索未知号；0 关停" aria-label="垄断破除：免费层垄断时定期搭车探索未知号；0 关停"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <input name="cost_explore_interval" placeholder="30m"></label>
+              <label class="fld"><span class="lb">积分保底<span class="tip" title="余额低于此值不再接实测收费模型（保住免费模型可用）；0 关闭" aria-label="余额低于此值不再接实测收费模型（保住免费模型可用）；0 关闭"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <input name="credit_floor" type="number" min="0" placeholder="100"></label>
+              <label class="fld"><span class="lb">快过期路由窗口<span class="tip" title="窗口内有快过期批次的账号选号权重 ×3（不排序、与金额无关）；0 关闭" aria-label="窗口内有快过期批次的账号选号权重 ×3（不排序、与金额无关）；0 关闭"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <input name="expiring_soon" placeholder="168h"></label>
+              <label class="fld"><span class="lb">会话粘性 TTL<span class="tip" title="改动需重启进程" aria-label="改动需重启进程"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <input name="ttl" placeholder="30m"></label>
             </div>
             <div class="switch"><span class="lb">快过期积分优先</span>
               <input type="checkbox" name="prefer_expiring"></div>
@@ -1550,61 +1605,44 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
         </div>
 
         <div class="box">
-          <header><h3>上游与高级</h3></header>
+          <header><h3>上游与高级<span class="tip" title="Upstash Redis 镜像、凭证目录与状态文件路径需手工编辑配置文件（判为重启项）。" aria-label="Upstash Redis 镜像、凭证目录与状态文件路径需手工编辑配置文件（判为重启项）。"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3></header>
           <div class="pad">
             <div class="grid3">
-              <label class="fld"><span class="lb">短请求超时</span>
-                <input name="timeout_seconds" type="number" min="1" placeholder="120">
-                <span class="hint">需重启</span></label>
-              <label class="fld"><span class="lb">聊天首字节超时</span>
-                <input name="header_timeout_seconds" type="number" min="1" placeholder="120">
-                <span class="hint">需重启</span></label>
-              <label class="fld"><span class="lb">流空闲超时</span>
-                <input name="idle_timeout_seconds" type="number" min="1" placeholder="300">
-                <span class="hint">需重启</span></label>
+              <label class="fld"><span class="lb">短请求超时<span class="tip" title="需重启" aria-label="需重启"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <input name="timeout_seconds" type="number" min="1" placeholder="120"></label>
+              <label class="fld"><span class="lb">聊天首字节超时<span class="tip" title="需重启" aria-label="需重启"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <input name="header_timeout_seconds" type="number" min="1" placeholder="120"></label>
+              <label class="fld"><span class="lb">流空闲超时<span class="tip" title="需重启" aria-label="需重启"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <input name="idle_timeout_seconds" type="number" min="1" placeholder="300"></label>
             </div>
             <div class="hr"></div>
             <div class="grid2">
-              <label class="fld"><span class="lb">出站 User-Agent</span>
-                <input name="user_agent" placeholder="留空 = CLI/2.63.2 CodeBuddy/2.63.2">
-                <span class="hint">影响官网积分记录「使用端」显示；需重启</span></label>
+              <label class="fld"><span class="lb">出站 User-Agent<span class="tip" title="影响官网积分记录「使用端」显示；需重启" aria-label="影响官网积分记录「使用端」显示；需重启"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <input name="user_agent" placeholder="留空 = CLI/2.63.2 CodeBuddy/2.63.2"></label>
             </div>
             <div class="hr"></div>
             <div class="grid2">
-              <label class="fld"><span class="lb">系统提示词模式</span>
+              <label class="fld"><span class="lb">系统提示词模式<span class="tip" title="需重启" aria-label="需重启"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
                 <select name="prompt_mode">
                   <option value="custom">custom — 网关自有提示词（避免指纹误报）</option>
                   <option value="append">append — 客户端 system 后插网关提示词（并用）</option>
                   <option value="passthrough">passthrough — 透传客户端原始 system</option>
-                </select>
-                <span class="hint">需重启</span></label>
-              <label class="fld"><span class="lb">提示词文件路径</span>
-                <input name="prompt_file" placeholder="留空 = 内置默认提示词">
-                <span class="hint">需重启</span></label>
+                </select></label>
+              <label class="fld"><span class="lb">提示词文件路径<span class="tip" title="需重启" aria-label="需重启"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <input name="prompt_file" placeholder="留空 = 内置默认提示词"></label>
             </div>
             <div class="hr"></div>
             <div class="switch"><span class="lb">出站请求指纹脱敏</span>
               <input type="checkbox" name="sanitize_blacklist_fingerprints"></div>
             <div class="switch"><span class="lb">会话粘性路由</span>
               <input type="checkbox" name="session_sticky_enabled"></div>
-            <div class="hint" style="margin-top:10px">Upstash Redis 镜像、凭证目录与状态文件路径需手工编辑配置文件（判为重启项）。</div>
           </div>
         </div>
 
-        <div class="box">
-          <header><h3>日志</h3></header>
-          <div class="pad">
-            <div class="switch"><span class="lb">记录调用来源（客户端 IP / User-Agent）</span>
-              <input type="checkbox" name="request_client_info"></div>
-            <div class="hint">开启后，「运行日志」页的请求记录会显示每次调用来自哪个 IP、用什么客户端；
-              关闭则归档与面板都不再出现来源信息。改动即时生效，无需重启。</div>
-            <div class="hint" style="margin-top:8px">归档开关、保留天数与容量上限（<code>logging.request_archive_*</code>）需手工编辑配置文件。</div>
-          </div>
-        </div>
 
 
         <div class="savebar">
-          <span class="hint">调度设置与系统配置共用这一个保存按钮</span>
+          
           <span class="grow"></span>
           <span class="restart-note" id="cfgNote"></span>
           <button type="button" id="btnCfgReload">放弃修改</button>
@@ -1641,7 +1679,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
           <span class="note" id="reqCount">—</span>
           <button class="xs" id="btnReqReload">重新读取</button>
         </div>
-        <div class="tbl-wrap req-wrap">
+        <div class="tbl-wrap req-wrap scrolly">
           <table class="acc req">
             <thead><tr>
               <th>时间</th><th>结果</th><th>模型</th><th>账号</th>
@@ -1684,7 +1722,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
           <span class="grow"></span>
           <button class="xs" id="btnCreditReload">重新读取</button>
         </div>
-        <div class="tbl-wrap">
+        <div class="tbl-wrap scrolly">
           <table class="acc">
             <thead><tr>
               <th>时间</th><th>账号</th><th class="num">变动</th><th class="num">变动后余额</th><th>说明</th>
@@ -1701,8 +1739,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
 <div class="veil" id="taskVeil">
   <div class="dlg" style="width:940px">
     <header>
-      <h3>积分任务 <span class="hint" id="taskWho"></span></h3>
-      <div class="hint">查询上游任务进度；「接受」为报名（幂等），「领取」在进度达标后可用。所有操作走网关，无需外部脚本。</div>
+      <h3>积分任务<span class="tip" title="「接受」为报名（幂等），「领取」在进度达标后可用" aria-label="「接受」为报名（幂等），「领取」在进度达标后可用"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span> <span class="hint" id="taskWho"></span></h3>
     </header>
     <div class="body">
       <div class="state" id="taskState"><span class="dots">加载中</span></div>
@@ -1727,8 +1764,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
 <div class="veil" id="vcVeil">
   <div class="dlg">
     <header>
-      <h3>开学季 · 我的券码</h3>
-      <div class="hint">抽奖抽中的第三方券（KFC / 瑞幸 / 酷狗等），券码到店到对应app/小程序兑换。</div>
+      <h3>开学季 · 我的券码<span class="tip" title="抽奖抽中的第三方券（KFC / 瑞幸 / 酷狗等），券码到对应 App / 小程序兑换" aria-label="抽奖抽中的第三方券（KFC / 瑞幸 / 酷狗等），券码到对应 App / 小程序兑换"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3>
     </header>
     <div class="body" id="vcBody"></div>
     <footer>
@@ -1764,7 +1800,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
   <div class="dlg" style="width:560px">
     <header>
       <h3>账号备注</h3>
-      <div class="hint">备注保存在服务端，重启不丢；账号、积分、任务、用量各页都会在名称下方显示，并可按备注搜索。留空即清除。</div>
+      <div class="hint">留空即清除</div>
     </header>
     <div class="body">
       <div class="rm-list" id="remarkBody"></div>

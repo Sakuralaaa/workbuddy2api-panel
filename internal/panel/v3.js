@@ -22,7 +22,8 @@ const V3 = {
   jobs: {},             // job → 展示名
   runs: [],
   active: {},
-  open: { cr: new Set(), tk: new Set(), ku: new Set(), run: new Set() },
+  open: { cr: new Set(), tk: new Set(), ku: new Set(), run: new Set(), act: new Set() },
+  act: null,            // 限时活动快照（/panel/api/activities）
   packs: {},            // uid → 单账号积分包查询结果
   tasks: {},            // uid → 成长任务列表 / 状态
   credHist: {},         // uid → 积分变动
@@ -32,11 +33,11 @@ const V3 = {
 
 const PEN_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.8 2.8 13.2 5.2 5.6 12.8 2.6 13.4 3.2 10.4z"/><path d="m9.4 4.2 2.4 2.4"/></svg>';
 const CHEV_SVG = '<svg class="chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg>';
-const JOB_ORDER = ['checkin', 'streak', 'travel', 'open_boxes', 'activity', 'intl_daily', 'blackcat', 'keepalive', 'growth', 'balance', 'compensation', 'task_sweep'];
+const JOB_ORDER = ['checkin', 'streak', 'travel', 'open_boxes', 'activity', 'campaign', 'intl_daily', 'blackcat', 'keepalive', 'growth', 'balance', 'compensation', 'task_sweep'];
 const JOB_NAMES = {
   checkin: '每日签到', streak: '连登管家', travel: '猫猫旅行', open_boxes: '开 Buddy 盲盒', activity: '活跃上报',
   keepalive: 'Token 保活', blackcat: '夜猫子', intl_daily: '国际版每日活跃', growth: '成长任务', balance: '余额刷新',
-  task_sweep: '任务补领', compensation: '官方补偿',
+  task_sweep: '任务补领', compensation: '官方补偿', campaign: '限时活动',
 };
 const OUTCOME_WORD = { done: '完成', claimed: '已领奖', skipped: '跳过', failed: '失败' };
 
@@ -214,9 +215,11 @@ function v3_renderAccountCards(list) {
 if ($('accQ')) $('accQ').oninput = () => overviewData && renderAccounts(overviewData.accounts || []);
 if ($('accFilter')) $('accFilter').onchange = () => overviewData && renderAccounts(overviewData.accounts || []);
 
+let actPollN = 0;
 function v3_afterOverview(d) {
   if (view === 'credits') v3_renderCredits();
-  if (view === 'tasks') renderTaskRows();
+  if (view === 'tasks') { renderTaskRows(); renderActivities(); }
+  if (actPollN++ % 12 === 0) loadActivities(); // 顶栏「任务管理」新活动角标（约每分钟）
 }
 
 /* ── 「全部账号执行」────────────────────────────────────────────────── */
@@ -310,7 +313,7 @@ function creditBodyHtml(s) {
       '</tbody></table></div></div>';
   }
   const ch = V3.credHist[s.uid];
-  h += '<div class="sub-h">积分变动<span class="grow"></span><span class="note">每次查到余额与上次比对</span></div>';
+  h += '<div class="sub-h">积分变动</div>';
   if (!ch) h += '<div class="muted-pad"><span class="dots">读取中</span></div>';
   else if (!ch.length) h += '<div class="muted-pad">暂无变动记录</div>';
   else h += '<div class="rec-list">' + ch.slice(0, 12).map(e => '<div class="rec"><span class="t">' + esc(fmtTime(e.time)) + '</span>' +
@@ -365,6 +368,7 @@ document.addEventListener('click', async ev => {
     renderTaskRows();
   } else if (kind === 'ku') renderKeyUsage();
   else if (kind === 'run') { if (set.has(uid)) loadRunDetail(uid); renderRuns(); }
+  else if (kind === 'act') renderActivities();
 });
 if ($('crQ')) $('crQ').oninput = v3_renderCredits;
 if ($('btnCrFetch')) $('btnCrFetch').onclick = async () => {
@@ -635,6 +639,7 @@ async function v3_loadTasksView() {
   } catch (e) { /* 401 → 封面 */ }
   renderTaskRows();
   renderRuns();
+  loadActivities();
 }
 let tkPollN = 0;
 function v3_pollTasks() {
@@ -675,7 +680,7 @@ function renderTaskRows() {
 function jobsFor(s) {
   const cn = s.realm !== 'global', personal = !s.enterprise;
   const out = [];
-  if (cn && personal) out.push('checkin', 'streak', 'travel', 'open_boxes');
+  if (cn && personal) out.push('checkin', 'streak', 'travel', 'open_boxes', 'campaign');
   if (personal) out.push('activity');
   if (!cn) out.push('intl_daily');
   out.push('keepalive');
@@ -699,8 +704,8 @@ function taskBodyHtml(s) {
       t.list.map(x => taskRowHtml(uid, x)).join('') + '</tbody></table></div>';
   }
   const recs = V3.records.filter(r => r.uid === uid).slice(0, 15);
-  h += '<div class="sub-h">任务记录<span class="grow"></span><span class="note">最近 ' + recs.length + ' 条（服务端保存，重启不丢）</span></div>';
-  h += recs.length ? '<div class="rec-list">' + recs.map(recHtml).join('') + '</div>' : '<div class="muted-pad">还没有任务记录：调度到点或手动执行后会出现在这里</div>';
+  h += '<div class="sub-h">任务记录<span class="grow"></span><span class="note">最近 ' + recs.length + ' 条</span></div>';
+  h += recs.length ? '<div class="rec-list">' + recs.map(recHtml).join('') + '</div>' : '<div class="muted-pad">暂无任务记录</div>';
   return h;
 }
 function recHtml(r) {
@@ -801,13 +806,134 @@ function v3_gotoTasks(uid) {
   return true;
 }
 
+/* 限时活动 */
+const ACT_KIND = { chat: '对话', expert: '专家', skill: '技能', desktop: '灵感', manual: '需手动' };
+function actStatus(t) {
+  if (t.claimed) return 'claimed';
+  if (t.completed || (t.target > 0 && t.progress >= t.target)) return 'claimable';
+  return t.kind === 'manual' ? 'manual' : 'pending';
+}
+const ACT_TAG = {
+  claimed: '<span class="tag ok">已领奖</span>', claimable: '<span class="tag warn">可领取</span>',
+  pending: '<span class="tag mute">待完成</span>', manual: '<span class="tag mute">需手动</span>',
+};
+function fmtDay(iso) {
+  const ms = parseAPITime(iso);
+  if (!ms) return '';
+  const d = new Date(ms), p = n => String(n).padStart(2, '0');
+  return p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+async function loadActivities() {
+  try { V3.act = await api('activities'); } catch (e) { return; }
+  renderActivities();
+}
+function actEligible(s) { return s.realm !== 'global' && !s.enterprise; }
+function updateActBadge() {
+  const n = (V3.act && V3.act.new_count) || 0;
+  const b = $('actBadge');
+  if (b) { b.hidden = !n; b.textContent = n + ' 个新活动'; b.title = '点击标记为已读'; }
+  const nav = document.querySelector('.tnav a[data-view="tasks"]');
+  if (nav) {
+    let nb = nav.querySelector('.nbadge');
+    if (n && !nb) { nb = document.createElement('span'); nb.className = 'nbadge'; nav.appendChild(nb); }
+    if (nb) { if (n) { nb.textContent = n; nb.title = n + ' 个新的限时活动'; } else nb.remove(); }
+  }
+}
+function renderActivities() {
+  updateActBadge();
+  const box = $('actRows');
+  if (!box) return;
+  const d = V3.act || {};
+  const by = {};
+  (d.accounts || []).forEach(a => { by[a.uid] = a; });
+  const seen = d.seen || {};
+  const list = accounts().filter(actEligible);
+  if ($('actNote')) $('actNote').textContent = d.running ? '执行中…' : (d.last_scan && parseAPITime(d.last_scan) > 0 ? '检查于 ' + fmtTime(d.last_scan) : '');
+  if ($('actNote')) $('actNote').title = d.enabled ? '定时：' + (d.hours || []).join(', ') + ' 点' : '定时执行已关闭（调度管理 → 限时活动）';
+  if (!list.length) { box.innerHTML = '<div class="empty">没有可参加活动的国内版个人账号</div>'; return; }
+  box.innerHTML = list.map(s => {
+    const a = by[s.uid];
+    const acts = (a && a.activities) || [];
+    const open = V3.open.act.has(s.uid);
+    let claimable = 0, credit = 0, manual = 0, done = 0, total = 0;
+    acts.forEach(x => (x.tasks || []).forEach(t => {
+      total++;
+      const st = actStatus(t);
+      if (st === 'claimed') done++;
+      else if (st === 'manual') manual++;
+      else { claimable++; credit += t.credit || 0; }
+    }));
+    const chips = !a ? '<span class="muted" style="font-size:12px">未检查</span>'
+      : a.error && !acts.length ? '<span class="tag bad" title="' + esc(a.error) + '">读取失败</span>'
+      : !acts.length ? '<span class="muted" style="font-size:12px">暂无下发的活动</span>'
+      : acts.map(x => {
+        const n = (x.tasks || []).length, ok = (x.tasks || []).filter(t => t.claimed).length;
+        return '<span class="act-chip" title="' + esc(x.code) + '">' + (seen[x.code] && seen[x.code].new ? '<span class="new">NEW</span>' : '') +
+          '<b>' + esc(x.name || x.code) + '</b>' + ok + '/' + n + (x.deadline ? '<span class="dl">· 截止 ' + esc(fmtDay(x.deadline)) + '</span>' : '') + '</span>';
+      }).join('');
+    const sum = !acts.length ? '' : claimable ? '<span class="act-sum"><b>' + claimable + ' 项待领</b>' + (credit ? ' · +' + fmtNum(credit) : '') + '</span>'
+      : '<span class="act-sum">' + (manual ? manual + ' 项需手动' : '全部完成') + '</span>';
+    return '<div class="xrow' + (open ? ' open' : '') + '" data-uid="' + esc(s.uid) + '">' +
+      '<div class="xhead" data-xt="act">' + CHEV_SVG +
+      '<div class="who"><div class="nm">' + esc(s.nickname || '未命名') + realmTags(s) + '</div>' + remarkHtml(s.uid, false) + '</div>' +
+      '<div class="mid"><div class="lastbadges">' + chips + '</div></div>' +
+      '<div class="right">' + sum + '</div></div>' +
+      '<div class="xbody">' + (open ? actBodyHtml(s, a) : '') + '</div></div>';
+  }).join('');
+}
+function actBodyHtml(s, a) {
+  const acts = (a && a.activities) || [];
+  let h = '';
+  if (!acts.length) h += '<div class="muted-pad">' + (a ? '当前没有下发给该账号的限时活动' : '还没检查过，点「发现新活动」') + '</div>';
+  acts.forEach(x => {
+    h += '<div class="act-hd">' + esc(x.name || x.code) + '<span class="dl">' + esc(x.code) + (x.deadline ? ' · 截止 ' + esc(fmtTime(x.deadline)) : '') + '</span></div>' +
+      '<div class="tbl-wrap"><table class="acc md"><thead><tr><th class="mark" aria-hidden="true"></th><th>任务</th><th>方式</th><th>进度</th><th>奖励</th><th>状态</th></tr></thead><tbody>' +
+      (x.tasks || []).map(t => '<tr><td class="mark" aria-hidden="true"><i></i></td><td class="who"><div class="nm">' + esc(t.name || t.code) + '</div><div class="id">' + esc(t.code) + (t.type ? ' · ' + esc(t.type) : '') + '</div></td>' +
+        '<td><span class="act-kind">' + esc(ACT_KIND[t.kind] || t.kind) + '</span></td>' +
+        '<td class="num">' + (t.progress || 0) + ' / ' + (t.target || 1) + '</td>' +
+        '<td class="num">' + (t.credit ? '+' + fmtNum(t.credit) : '—') + '</td><td>' + ACT_TAG[actStatus(t)] + '</td></tr>').join('') +
+      '</tbody></table></div>';
+  });
+  h += '<div class="jobbar" style="margin-top:12px"><button class="xs primary" data-run-job="campaign" data-u="' + esc(s.uid) + '">执行该账号</button>' +
+    (a && a.checked_at ? '<span class="note" style="align-self:center">检查于 ' + esc(fmtTime(a.checked_at)) + '</span>' : '') + '</div>';
+  return h;
+}
+if ($('actBadge')) $('actBadge').onclick = async ev => {
+  ev.stopPropagation();
+  try { await api('activities/seen', { method: 'POST' }); } catch (e) { /* ignore */ }
+  loadActivities();
+};
+if ($('btnActDiscover')) $('btnActDiscover').onclick = async () => {
+  const b = $('btnActDiscover');
+  b.disabled = true; b.textContent = '发现中…';
+  try {
+    V3.act = await api('activities/discover', { method: 'POST' });
+    const n = V3.act.new_count || 0;
+    toast(n ? '发现 ' + n + ' 个新活动' : '活动列表已更新，没有新活动', 'ok');
+    renderActivities();
+  } catch (e) { toast(e.message, 'err'); }
+  finally { b.disabled = false; b.textContent = '发现新活动'; }
+};
+if ($('btnActRun')) $('btnActRun').onclick = async () => {
+  if (!confirm('对全部国内版个人账号执行限时活动（上报对话 / 专家等判据事件并领奖），继续？')) return;
+  const b = $('btnActRun');
+  b.disabled = true;
+  try {
+    await api('jobs/campaign/run_all', { method: 'POST' });
+    api('activities/seen', { method: 'POST' }).catch(() => {});
+    toast('限时活动：已开始执行，结果见运行历史', 'ok');
+    setTimeout(v3_loadTasksView, 3000);
+  } catch (e) { toast(e.message, 'err'); }
+  finally { setTimeout(() => { b.disabled = false; }, 1500); }
+};
+
 /* 运行历史 */
 const RUN_DETAIL = {};
 function renderRuns() {
   const box = $('runRows');
   if (!box) return;
   $('runNote').textContent = V3.runs.length ? '最近 ' + V3.runs.length + ' 轮' : '';
-  if (!V3.runs.length) { box.innerHTML = '<div class="empty">还没有运行记录：排程到点或点「全部账号执行」后会出现在这里</div>'; return; }
+  if (!V3.runs.length) { box.innerHTML = '<div class="empty">暂无运行记录</div>'; return; }
   box.innerHTML = V3.runs.map(r => {
     const open = V3.open.run.has(r.id);
     const secs = Math.max(0, (parseAPITime(r.finished) - parseAPITime(r.started)) / 1000);

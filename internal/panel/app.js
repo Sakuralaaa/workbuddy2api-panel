@@ -553,7 +553,8 @@ async function loadOverview(quiet) {
     p.className = 'pulse' + (d.healthy > 0 ? '' : (d.total ? ' warn' : ' bad'));
     $('accNote').textContent = d.in_flight_full ? d.in_flight_full + ' 个账号在途占满' : '';
     const up = Math.floor(d.uptime_sec);
-    $('subMeta').textContent = '运行 ' + (up >= 86400 ? Math.floor(up / 86400) + ' 天 ' : '') + Math.floor(up % 86400 / 3600) + ' 时 ' + Math.floor(up % 3600 / 60) + ' 分';
+    const st = document.querySelector('.topbar .status');
+    if (st) st.title = '服务状态 · 数据存储 · 已运行 ' + (up >= 86400 ? Math.floor(up / 86400) + ' 天 ' : '') + Math.floor(up % 86400 / 3600) + ' 时 ' + Math.floor(up % 3600 / 60) + ' 分';
     renderAccounts(d.accounts || []);
     renderModelLocks(d.model_locks);
     v3('afterOverview', d);
@@ -1081,7 +1082,7 @@ function renderRequestTable() {
       '<td class="num">' + esc(when) + '</td>' +
       '<td>' + reqOutcomeTag(e) + '</td>' +
       '<td>' + esc(e && e.model || '—') + '</td>' +
-      '<td>' + esc(e && e.account || '—') + (e && e.api_key_name ? '<div class="muted" style="font-size:11.5px">🔑 ' + esc(e.api_key_name) + '</div>' : '') + '</td>' +
+      '<td>' + reqAccountHtml(e && e.account) + (e && e.api_key_name ? '<div class="muted kname-sm"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="5.2" cy="10.8" r="2.7"/><path d="m7.2 8.8 6-6M11.2 4.8l1.6 1.6"/></svg>' + esc(e.api_key_name) + '</div>' : '') + '</td>' +
       '<td>' + (ip ? '<span class="clip ip" title="' + esc(ip) + '">' + esc(ip) + '</span>' : '<span class="muted">—</span>') + '</td>' +
       '<td>' + (ua ? '<span class="clip" title="' + esc(ua) + '">' + esc(ua) + '</span>' : '<span class="muted">—</span>') + '</td>' +
       '<td class="num">' + fmtMs(e && e.duration_ms) + '</td>' +
@@ -1177,6 +1178,7 @@ const CFG_MAP = {
   intl_daily_enabled: ['schedule', 'intl_daily_enabled'], intl_daily_hours: ['schedule', 'intl_daily_hours'],
   intl_daily_web: ['schedule', 'intl_daily_web'], intl_daily_models: ['schedule', 'intl_daily_models'],
   intl_daily_prompt: ['schedule', 'intl_daily_prompt'], travel_open_boxes: ['schedule', 'travel_open_boxes'],
+  activity_tasks: ['schedule', 'activity_tasks'], activity_tasks_hours: ['schedule', 'activity_tasks_hours'], activity_codes: ['schedule', 'activity_codes'],
   blackcat_hours: ['schedule', 'blackcat_hours'], blackcat_enabled: ['schedule', 'blackcat_enabled'],
   package_detail_limit: ['panel', 'package_detail_limit'],
   checkin_hours: ['schedule', 'checkin_hours'], checkin_enabled: ['schedule', 'checkin_enabled'], growth_hours: ['schedule', 'growth_hours'], growth_enabled: ['schedule', 'growth_enabled'],
@@ -1253,7 +1255,7 @@ function collectConfig() {
     else {
       const raw = el.value.trim();
       // 覆盖型字段空串照发（见 CLEARABLE_CFG）；其余空 = 不下发。
-      if (name.endsWith('_account_order') || name.endsWith('_models')) v = raw.split(/[,，\s]+/).filter(Boolean);
+      if (name.endsWith('_account_order') || name.endsWith('_models') || name === 'activity_codes') v = raw.split(/[,，\s]+/).filter(Boolean);
       else if (raw === '') v = CLEARABLE_CFG.has(name) ? '' : undefined;
       else if (name.endsWith('_hours')) v = raw.split(/[,，\s]+/).filter(Boolean).map(Number);
       else v = raw;
@@ -3259,7 +3261,7 @@ function expiryRowsHtml(list) {
     const more = bs.length > 4 ? '　等 ' + bs.length + ' 批' : '';
     const rest = bs.slice(1, 4).map(b =>
       '随后 ' + esc(b.date.slice(5)) + ' · ' + fmtTok(b.remain)).join('　') + more;
-    return '<div class="exp-row"><span class="exp-dot" style="background:' + cls + '"></span>' +
+    return '<div class="exp-row" title="仅最早一批；点「检查」看全部到期批次"><span class="exp-dot" style="background:' + cls + '"></span>' +
       '<span class="exp-nm">' + esc(name) + '</span>' +
       '<span class="exp-main">最近到期 <b>' + esc(first.date) + '</b>（' + dayWord +
       '）· 该批 <b>' + fmtTok(first.remain) + '</b> 积分 · 到期前日均需耗 ≥<b>' +
@@ -3277,8 +3279,8 @@ function renderExpiry(d) {
   // 数据新鲜度透明化：走缓存时标注年龄，免得把旧数据误当实时。
   const ageMin = lastPackages ? Math.floor((Date.now() - lastPackagesAt) / 60000) : 0;
   $('expNote').textContent = (lastPackagesAt && ageMin > 0)
-    ? list.length + ' 个账号 · ' + ageMin + ' 分钟前的数据，可点「检查」刷新'
-    : list.length + ' 个账号 · 实时查询上游';
+    ? list.length + ' 个账号 · ' + ageMin + ' 分钟前'
+    : list.length + ' 个账号 · 实时';
   $('expBox').hidden = false;
 }
 
@@ -3319,7 +3321,8 @@ function renderExpirySnapshot(d) {
         packages: packagesOf(a),
       })),
     });
-    $('expNote').textContent = snapshotNoteText(list.length, d);
+    $('expNote').textContent = list.length + ' 个账号 · ' + snapshotAge(d);
+    $('expNote').title = snapshotNoteText(list.length, d);
     return;
   }
   // 旧 state 兜底：只有最早一批的日期与数量。
@@ -3361,11 +3364,11 @@ function renderExpirySnapshot(d) {
       '<span class="exp-main">最近到期 <b>' + esc(when) + '</b>（' + dayWord +
       '）· 该批 <b>' + fmtTok(remain) + '</b> 积分 · 到期前日均需耗 ≥<b>' +
       fmtTok(daily) + '</b>' +
-      '<div class="note">仅最早一批，点「检查」看全部到期批次</div>' +
       '</span></div>';
   }).join('');
   $('expList').innerHTML = rows || '<div class="empty">没有账号</div>';
-  $('expNote').textContent = snapshotNoteText(list.length, d);
+  $('expNote').textContent = list.length + ' 个账号 · ' + snapshotAge(d);
+  $('expNote').title = snapshotNoteText(list.length, d);
   $('expBox').hidden = false;
 }
 
@@ -3373,6 +3376,14 @@ function renderExpirySnapshot(d) {
 // 只随余额后台刷新更新（默认每 5 分钟）——不标出来的话，5 秒级的界面刷新会让人
 // 误以为数据也是 5 秒级新鲜。放在 renderExpirySnapshot 之后：前端 harness 按
 // 「renderExpirySnapshot 起」切片求值，函数声明提升让它在同一切片内可用。
+// snapshotAge 卡片头的简短新鲜度（完整说明在 title 里）。
+function snapshotAge(d) {
+  const iv = Number(d && d.balance_refresh_sec) || 0;
+  const at = d && d.balance_refreshed_at ? new Date(d.balance_refreshed_at).getTime() : 0;
+  if (iv <= 0 || !at || isNaN(at)) return '本地快照';
+  const min = Math.floor((Date.now() - at) / 60000);
+  return min < 1 ? '刚刚更新' : min + ' 分钟前更新';
+}
 function snapshotNoteText(count, d) {
   const iv = Number(d && d.balance_refresh_sec) || 0;
   const at = d && d.balance_refreshed_at ? new Date(d.balance_refreshed_at).getTime() : 0;
@@ -3424,6 +3435,13 @@ function remarksAll() {
   return remarksCache || {};
 }
 function remarkKey(uid) { return String(uid == null ? '' : uid).slice(0, 8); }
+/* 请求记录的账号列：池内账号显示昵称（UID 放 title），其余原样。 */
+function reqAccountHtml(acc) {
+  if (!acc) return '—';
+  const s = ((typeof overviewData !== 'undefined' && overviewData && overviewData.accounts) || []).find(a => a.uid === acc);
+  if (!s) return '<span title="' + esc(acc) + '">' + esc(acc) + '</span>';
+  return '<span title="' + esc(acc) + '">' + remarkName(acc, esc(s.nickname || acc.slice(0, 8))) + '</span>';
+}
 function remarkOf(uid) {
   const k = remarkKey(uid);
   return k ? String(remarksAll()[k] || '') : '';

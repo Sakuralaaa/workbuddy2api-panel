@@ -1117,6 +1117,7 @@ process.stdout.write(JSON.stringify({
 // TestAppJSExpirySnapshotNoteCadence 到期卡片必须如实标注数据节奏与年龄。
 // 界面本身 5 秒轮询一次 overview，但卡片数据只随余额后台刷新更新（默认每 5 分钟）；
 // 不标注的话，5 秒级的界面刷新会让人误以为数据也是 5 秒级新鲜。
+// panel-v3：卡片头只显示简短年龄（「3 分钟前更新」/「本地快照」），完整节奏说明放在 title（ⓘ 悬停）。
 func TestAppJSExpirySnapshotNoteCadence(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {
@@ -1145,14 +1146,14 @@ const refreshedAt = new Date(Date.now() - 3 * 60000).toISOString();
 ctx.renderExpirySnapshot({ accounts: [
   { uid: 'a', nickname: 'n', credits_expiry_buckets: [{ date: '2099-01-01', remain: 1 }] },
 ], balance_refresh_sec: 300, balance_refreshed_at: refreshedAt });
-const withCadence = sinks['expNote'].textContent;
+const withCadence = sinks['expNote'].textContent, withCadenceTip = sinks['expNote'].title || '';
 ctx.renderExpirySnapshot({ accounts: [
   { uid: 'a', nickname: 'n', credits_expiry_buckets: [{ date: '2099-01-01', remain: 1 }] },
 ] });
-const withoutCadence = sinks['expNote'].textContent;
+const withoutCadence = sinks['expNote'].textContent, withoutCadenceTip = sinks['expNote'].title || '';
 process.stdout.write(JSON.stringify({
-  cadence: withCadence.includes('每 5 分钟后台刷新') && withCadence.includes('3 分钟前更新'),
-  noCadence: withoutCadence.includes('未开启后台刷新'),
+  cadence: withCadenceTip.includes('每 5 分钟后台刷新') && withCadence.includes('3 分钟前更新'),
+  noCadence: withoutCadenceTip.includes('未开启后台刷新') && withoutCadence.includes('本地快照'),
   note: withCadence,
 }));`
 	f, err := os.CreateTemp(t.TempDir(), "expnote-*.cjs")
