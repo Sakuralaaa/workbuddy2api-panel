@@ -59,6 +59,14 @@ type TokenUsageDelta struct {
 	TokensPerSecond     float64
 }
 
+// ExpiryBucket 单个自然日到期的积分合计（面板「到期提醒」快照用）。
+// 与 upstream.ExpiryBucket 同构；单独定义是为了不让底层 pool 反向依赖 upstream。
+type ExpiryBucket struct {
+	Date     string    `json:"date"`
+	ExpireAt time.Time `json:"expires_at,omitempty"`
+	Remain   int64     `json:"remain"`
+}
+
 // Status 单个账号对外暴露的状态（脱敏）。
 type Status struct {
 	UID          string `json:"uid"`
@@ -71,7 +79,11 @@ type Status struct {
 	CreditsExpiring          int64     `json:"credits_expiring,omitempty"`
 	CreditsEarliestExpiry    time.Time `json:"credits_earliest_expiry,omitempty"`
 	CreditsEarliestRemaining int64     `json:"credits_earliest_remaining,omitempty"`
-	Cooling                  bool      `json:"cooling"`
+	// CreditsExpiryBuckets 全部未来到期批次按自然日聚合（date/expires_at/remain）。
+	// 面板首页「积分到期提醒」快照直接用它渲染，与「检查」的逐包按日汇总同口径；
+	// 只有最早一批的旧字段无法表达「同一天多个包」「后续批次」「7 天内合计」。
+	CreditsExpiryBuckets []ExpiryBucket `json:"credits_expiry_buckets,omitempty"`
+	Cooling              bool           `json:"cooling"`
 	CoolKind                 string    `json:"cool_kind,omitempty"`
 	CoolRemaining            int64     `json:"cool_remaining_sec,omitempty"`
 	Until                    time.Time `json:"until,omitempty"`
@@ -84,8 +96,17 @@ type Status struct {
 	// Realm 账号域（cn/global，auth.Realm() 计算值；含 global.enabled 开关闸）。
 	// 供面板/状态接口按域分组展示。
 	Realm           string     `json:"realm,omitempty"`
+	// Enterprise 企业版账号（auth.EnterpriseID 非空，计算值不落盘）。
+	// 企业版无个人成长体系（签到/成长任务/连登/旅行/夜猫子 上游均拒），
+	// 面板据此隐藏对应按钮；选号、保活、额度展示不受影响。
+	Enterprise      bool       `json:"enterprise,omitempty"`
 	Disabled        bool       `json:"disabled"`
 	DisabledReason  string     `json:"disabled_reason,omitempty"` // 仅 disabled 账号：禁用原因（运维可见）
+	// Paused 暂停选号：退出选号候选（与 disabled 一样不参与选号），但**照常参与**
+	// 签到 / 活跃上报 / 保活 / 余额刷新四类保号任务。与 disabled 正交——disabled 是
+	// 「授权/session 终态，需人工 revive」，paused 是「运维临时让位」（多号轮换场景），
+	// 账号本身健康，只是暂不接流量。
+	Paused          bool       `json:"paused,omitempty"`
 	SuccessCount    int64      `json:"success_count,omitempty"`
 	ErrTotal        int64      `json:"err_total,omitempty"`
 	LastSuccessTime time.Time  `json:"last_success,omitempty"`
@@ -180,6 +201,9 @@ type entry struct {
 	creditsExpiring          int64
 	creditsEarliestExpiry    time.Time
 	creditsEarliestRemaining int64
+	// expiryBuckets 全部未来到期批次按自然日聚合（升序）。供面板快照展示与
+	// NoteModelCost 的 FEFO 近似扣减；由 SetCreditsSnapshot 整体替换。
+	expiryBuckets []ExpiryBucket
 	successCount             int64      // 累计成功
 	errTotal                 int64      // 累计错误（供成功率权重 successRate = successCount/(successCount+errTotal)，不清零）
 	lastErr                  time.Time  // 最近一次错误时间
@@ -192,6 +216,10 @@ type entry struct {
 	coolKind       CoolKind
 	until          time.Time // 冷却截止（即时冷却：CoolSoft 429 / CoolHard 余额耗尽）
 	disabled       bool
+	// paused 暂停选号：与 disabled 正交。置位后退出选号候选（healthy 判否），
+	// 但保号任务遍历只按 Disabled 过滤，故 paused 号天然继续参与签到 / 活跃上报 /
+	// 保活 / 余额刷新。持久化（state.json），跨重启不丢。
+	paused         bool
 	reason         string
 	lastUsed       time.Time // 最近被选中时刻（防并发撞号）
 	// usedSeq 单调递增的选中序号：每次被 pick 选中时取 p.pickSeq 自增值。
@@ -263,7 +291,7 @@ func (e *entry) modelCostOf(model string, now time.Time) (modelCostEntry, bool) 
 // 连败降权与冷却/熔断同入本判定（取更长者不叠加：三个截止是并列的或门，
 // 只要任一未到期即不可选，天然「并存取更远者」——不需要显式比较长短）。
 func (e *entry) healthy(now time.Time) bool {
-	if e.disabled {
+	if e.disabled || e.paused {
 		return false
 	}
 	if !e.until.IsZero() && now.Before(e.until) {
@@ -284,7 +312,7 @@ func (e *entry) healthy(now time.Time) bool {
 // healthyForModel 与 ServableNow 共用本谓词，保证 chat 选号与探活口径一致。
 // 调用方负责 now 与冷却有效性的判断（本方法只看形态，不看冷却是否已过期）。
 func (e *entry) modelExempt() bool {
-	if e.disabled || !e.until.IsZero() || !e.degradeUntil.IsZero() || !e.breakerUntil.IsZero() {
+	if e.disabled || e.paused || !e.until.IsZero() || !e.degradeUntil.IsZero() || !e.breakerUntil.IsZero() {
 		return false
 	}
 	for _, mc := range e.modelCooldowns {
@@ -318,7 +346,7 @@ func (e *entry) modelCooled(now time.Time, reqModel string) bool {
 // 任意多个模型同时限流：被 B 限流的账号对 A 请求仍可选（A 不在 modelCooldowns 拦截
 // 且账号级 healthy 成立）。空 reqModel / 未记录模型 → 等价 healthy。
 func (e *entry) healthyForModel(now time.Time, reqModel string) bool {
-	if e.disabled {
+	if e.disabled || e.paused {
 		return false
 	}
 	if e.modelCooled(now, reqModel) {
@@ -408,6 +436,7 @@ type stateAccount struct {
 	Credits      int64     `json:"credits"`
 	CreditsTotal int64     `json:"credits_total,omitempty"`
 	Disabled     bool      `json:"disabled"`
+	Paused       bool      `json:"paused,omitempty"`
 	Reason       string    `json:"reason,omitempty"`
 	Until        time.Time `json:"until,omitempty"`
 	CoolKind     CoolKind  `json:"cool_kind"`
@@ -449,6 +478,9 @@ type stateAccount struct {
 	// 与 CreditsExpiring 一并持久化，重启后首次请求仍可沿用最近一次余额快照。
 	CreditsEarliestExpiry    time.Time `json:"credits_earliest_expiry,omitempty"`
 	CreditsEarliestRemaining int64     `json:"credits_earliest_remaining,omitempty"`
+	// CreditsExpiryBuckets 全部未来到期批次按自然日聚合。持久化后重启即可用完整
+	// 快照渲染首页卡片；恢复时惰性剔除已过期/零剩余条目。
+	CreditsExpiryBuckets []ExpiryBucket `json:"credits_expiry_buckets,omitempty"`
 	// ModelCooldowns 模型级独立冷却表（model → 冷却记录：6004 重置墙钟 / 11102
 	// 负缓存退避）。持久化：6004 对齐上游重置墙钟后单模型冷却可长达数小时，
 	// 跨重启是常态；不持久化会导致 healthyForModel 重启失忆、重新踩雷区。
@@ -481,7 +513,8 @@ type stateModelCost struct {
 
 // stateFile 持久化格式。
 type stateFile struct {
-	Accounts map[string]stateAccount `json:"accounts"`
+	Accounts   map[string]stateAccount   `json:"accounts"`
+	Scheduling map[string]scheduleCursor `json:"scheduling,omitempty"`
 }
 
 // flushInterval 后台落盘周期。
