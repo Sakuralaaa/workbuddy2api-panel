@@ -90,3 +90,30 @@ func TestSaveRegionSchedulingHotAppliesAndRejectsInvalid(t *testing.T) {
 		t.Fatalf("invalid save changed strategy: %v", a)
 	}
 }
+
+// 回归：Docker/Zeabur 用环境变量设密钥、文件仍是样例配置时，面板只改一个字段（模型启停）
+// 也不能让热快照退回文件里的 api_key/admin_key。
+func TestSaveConfigKeepsEnvKeys(t *testing.T) {
+	t.Setenv("WB2A_API_KEY", "594926")
+	t.Setenv("WB2A_ADMIN_KEY", "env-admin")
+	dir := t.TempDir()
+	fp := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(fp, []byte(`{"api_key":"test_key","admin_key":"test_admin_key"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(fp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := livecfg.New(liveFrom(cfg))
+	p := pool.New("")
+	up := upstream.New()
+	sch := scheduler.New(scheduler.Config{})
+	if _, err := saveConfig([]byte(`{"models":{"disabled":["cn:x"]}}`), fp, live, p, up, sch); err != nil {
+		t.Fatal(err)
+	}
+	s := live.Load()
+	if s.APIKey != "594926" || s.PanelKey() != "env-admin" {
+		t.Fatalf("env keys lost after save: api=%q panel=%q", s.APIKey, s.PanelKey())
+	}
+}

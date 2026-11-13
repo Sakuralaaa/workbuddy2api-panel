@@ -34,7 +34,7 @@ import (
 )
 
 // appVersion 网关版本（fork 版：面板 + 任务体系），透出到 /panel/api/overview。
-const appVersion = "1.14.2-panel"
+const appVersion = "1.14.3-panel"
 
 // usagePathFor 由 state 文件路径推出用量文件路径：同目录、文件名 usage.json。
 // 这样 config 里改 state_file 时用量数据跟着走，不需要额外配置项。
@@ -509,6 +509,13 @@ func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up 
 	// 2) 校验（与启动同一套 Default+normalize），失败直接返回、不落盘。
 	newCfg, err := ParseConfig(mergedJSON(merged))
 	if err != nil {
+		return nil, err
+	}
+	// 与启动（Load）同口径：环境变量（WB2A_API_KEY / WB2A_ADMIN_KEY 等）始终覆盖文件值。
+	// 否则只改了一个字段（如模型启停）也会让热快照退回文件里的 api_key/admin_key——
+	// Docker/Zeabur 用 env 设密钥、文件仍是样例配置时，面板会把登录者踢出去。
+	applyEnv(newCfg)
+	if err := newCfg.normalize(); err != nil {
 		return nil, err
 	}
 

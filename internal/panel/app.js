@@ -1327,8 +1327,15 @@ $('cfgForm').onsubmit = async ev => {
     const n = (r.restart_required || []).length;
     toast(n ? '配置已保存，其中 ' + n + ' 项需重启进程生效' : '配置已保存并立即生效', 'ok');
     // 管理密钥可能已改：本次会话沿用新值（admin_key 优先，空则回落 api_key），避免下一次轮询被 401。
+    // 先用新值校验一次：环境变量（WB2A_ADMIN_KEY / WB2A_API_KEY）会覆盖面板填写的值，校验不过就保留原密钥。
     const k = ($('cfgAdminKey') && $('cfgAdminKey').value.trim()) || $('cfgKey').value.trim();
-    if (k) localStorage.setItem(LS_KEY, k);
+    if (k && k !== localStorage.getItem(LS_KEY)) {
+      try {
+        const c = await fetch('/panel/api/auth/check', { headers: { Authorization: 'Bearer ' + k } });
+        if (c.ok) localStorage.setItem(LS_KEY, k);
+        else toast('管理密钥由环境变量决定，面板里改的值未生效，继续使用原密钥', 'err');
+      } catch (_) { /* 网络抖动：保留原密钥 */ }
+    }
     v3('loadSchedule');
     loadConfig();
     loadOverview(true);
