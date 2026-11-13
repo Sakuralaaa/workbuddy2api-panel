@@ -547,7 +547,6 @@ async function loadOverview(quiet) {
     const loc = n => Number(n).toLocaleString('zh-CN');
     $('sCredits').textContent = totSum > 0 ? loc(remSum) + ' / ' + loc(totSum) : loc(remSum);
     $('sSticky').textContent = d.sticky_sessions;
-    if ($('navVer') && d.version) $('navVer').textContent = 'v' + String(d.version).replace(/^v/, '');
     $('navRedis').textContent = d.storage || (d.redis_mode === 'upstash' ? '本地文件 + Upstash Redis' : '本地内存');
     $('navState').textContent = d.healthy > 0 ? '服务正常' : (d.total ? '无可用账号' : '待添加账号');
     const p = $('navPulse');
