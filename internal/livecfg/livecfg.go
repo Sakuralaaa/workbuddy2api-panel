@@ -16,11 +16,24 @@ import (
 
 // Snapshot 一次读取的不可变配置视图。
 type Snapshot struct {
-	APIKey               string        // 网关/面板共同鉴权密钥；空 = 不鉴权
-	SoftCooldown         time.Duration // 429 软冷却基数（<=0 时调用方回退内置默认）
-	SanitizeFingerprints bool          // 出站请求体指纹脱敏
-	RecordClientInfo     bool          // 请求日志是否记录调用来源（客户端 IP / UA）
+	APIKey               string              // 网关/面板共同鉴权密钥；空 = 不鉴权
+	SoftCooldown         time.Duration       // 429 软冷却基数（<=0 时调用方回退内置默认）
+	SanitizeFingerprints bool                // 出站请求体指纹脱敏
+	RecordClientInfo     bool                // 请求日志是否记录调用来源（客户端 IP / UA）
 	HiddenModels         map[string]struct{} // 精确隐藏的模型 id（已归一化为 "cn:x"/"global:x" 全量形式）；nil = 不隐藏
+	// AdminKey 管理面板密钥（config admin_key）；空 = 回落 APIKey（旧行为）。
+	AdminKey string
+	// DisabledModels 面板「模型管理」里停用的模型（config models.disabled，归一化同 HiddenModels）：
+	// 不出现在 /v1/models，点名调用返回 OpenAI 风格错误 code=model_disabled。
+	DisabledModels map[string]struct{}
+}
+
+// PanelKey 面板鉴权实际使用的密钥：admin_key 优先，空则回落 api_key。
+func (s Snapshot) PanelKey() string {
+	if s.AdminKey != "" {
+		return s.AdminKey
+	}
+	return s.APIKey
 }
 
 // Holder 原子持有当前快照。

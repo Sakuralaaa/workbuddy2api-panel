@@ -84,12 +84,17 @@ type Event struct {
 	CacheMissTokens int64 `json:"cache_miss_tokens,omitempty"`
 	ClientIP         string    `json:"client_ip,omitempty"`
 	UserAgent        string    `json:"user_agent,omitempty"`
+	// APIKeyID / APIKeyName 本次请求鉴权通过所用的 API Key（多密钥，panel-v3）：
+	// "legacy" = config api_key，"panel" = 面板测试请求；未开鉴权时为空。
+	APIKeyID   string `json:"api_key_id,omitempty"`
+	APIKeyName string `json:"api_key_name,omitempty"`
 }
 
 // Filter 用于从归档中筛选最近记录。字符串字段一律「包含」匹配（大小写不敏感），
 // 便于面板用一段 IP 前缀或 UA 片段捞请求；From/To 是闭区间（零值 = 该侧不设界），
 // 供「今天 / 近 7 天 / 自定义区间」这类时间查询使用。
 type Filter struct {
+	APIKey    string // 精确匹配 api_key_id
 	Outcome   string
 	Account   string
 	Model     string
@@ -570,6 +575,9 @@ func readFile(path string, filter Filter) ([]Event, error) {
 }
 
 func (f Filter) match(e Event) bool {
+	if f.APIKey != "" && e.APIKeyID != f.APIKey {
+		return false
+	}
 	if f.Outcome != "" && e.Outcome != f.Outcome {
 		return false
 	}

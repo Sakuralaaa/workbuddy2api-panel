@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/linguo2625469/workbuddy2api-panel/internal/apikeys"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/auth"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/httpauth"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/livecfg"
@@ -78,6 +79,11 @@ type Config struct {
 	// 来自 logging.request_client_info（缺省 true）；关闭时 reqlog 事件的来源字段
 	// 保持为空，归档与面板都不出现来源信息。
 	RecordClientInfo bool
+
+	// Keys 多 API Key 表（panel-v3；可选，nil = 只用 config api_key）。
+	// 鉴权：config api_key 与任一启用中的密钥都可通过；两者都没有时不鉴权（旧行为）。
+	// 每个请求的用量按密钥计入 Keys（请求日志事件同时记录 api_key_id/name）。
+	Keys *apikeys.Store
 }
 
 // loadLive 返回当前运行期快照；Live 为 nil 时用静态字段合成。
@@ -91,6 +97,56 @@ func (h *Handler) loadLive() livecfg.Snapshot {
 		RecordClientInfo: h.cfg.RecordClientInfo,
 		HiddenModels:     livecfg.NormalizeHiddenModels(h.cfg.ModelsHidden),
 	}
+}
+
+// internalKey 面板内部请求（模型测试）的 context 标记：免鉴权，且允许调用已停用的模型。
+type internalKey struct{}
+
+// WithInternal 标记一个进程内请求（面板「测试模型」）：跳过 API Key 鉴权与模型停用拦截，
+// 用量记在 apikeys.InternalID 名下。只能由进程内代码构造（context 无法经 HTTP 注入）。
+func WithInternal(ctx context.Context) context.Context {
+	return context.WithValue(ctx, internalKey{}, true)
+}
+
+func isInternal(r *http.Request) bool {
+	v, _ := r.Context().Value(internalKey{}).(bool)
+	return v
+}
+
+// authenticate 鉴权并返回命中的密钥（id/name）。ok=false = 401。
+// 规则：config api_key 为空且密钥表为空 → 不鉴权（旧行为，id 为空不计 key 用量）。
+func (h *Handler) authenticate(r *http.Request) (id, name string, ok bool) {
+	if isInternal(r) {
+		return apikeys.InternalID, apikeys.InternalName, true
+	}
+	legacy := h.loadLive().APIKey
+	hasKeys := h.cfg.Keys.Count() > 0
+	if legacy == "" && !hasKeys {
+		return "", "", true
+	}
+	if legacy != "" && httpauth.VerifyBearer(r, legacy) {
+		return apikeys.LegacyID, apikeys.LegacyName, true
+	}
+	if hasKeys {
+		if tok, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); found {
+			if k, valid := h.cfg.Keys.Verify(tok); valid {
+				return k.ID, k.Name, true
+			}
+		}
+	}
+	return "", "", false
+}
+
+// recordKeyUsage 把一次请求日志事件计入对应密钥的用量统计。
+func (h *Handler) recordKeyUsage(e reqlog.Event) {
+	if h.cfg.Keys == nil || e.APIKeyID == "" {
+		return
+	}
+	h.cfg.Keys.Record(apikeys.Usage{
+		KeyID: e.APIKeyID, Time: e.Time, Model: e.Model, OK: e.OK,
+		PromptTokens: e.PromptTokens, CompletionTokens: e.CompletionTokens, TotalTokens: e.TotalTokens,
+		Credits: e.Credit,
+	})
 }
 
 // softCooldown 返回当前生效的软冷却基数（热改优先，<=0 回退默认）。
@@ -176,7 +232,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if status == 0 {
 				status = http.StatusOK
 			}
-			h.cfg.RequestLog.Record(trace.event(status))
+			ev := trace.event(status)
+			h.cfg.RequestLog.Record(ev)
+			h.recordKeyUsage(ev)
 		}()
 		h.mux.ServeHTTP(obs, r)
 		return
@@ -203,9 +261,13 @@ func isSearchPath(path string) bool {
 
 func (h *Handler) withAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !httpauth.VerifyBearer(r, h.loadLive().APIKey) {
+		id, name, ok := h.authenticate(r)
+		if !ok {
 			writeOpenAIError(w, http.StatusUnauthorized, "invalid_api_key", "missing or invalid API key")
 			return
+		}
+		if tr := requestTraceFrom(r); tr != nil {
+			tr.keyID, tr.keyName = id, name
 		}
 		next(w, r)
 	}
@@ -394,8 +456,12 @@ func (h *Handler) modelList() []map[string]any {
 	out := make([]map[string]any, 0)
 	// models.hidden 黑名单：快照外提，避免逐条目重复 Load。
 	hidden := h.loadLive().HiddenModels
+	disabled := h.loadLive().DisabledModels
 	for _, mi := range h.fetchDynamicModels() {
 		if _, ok := hidden["cn:"+mi.ID]; ok {
+			continue
+		}
+		if _, ok := disabled["cn:"+mi.ID]; ok {
 			continue
 		}
 		entry := map[string]any{
@@ -442,6 +508,9 @@ func (h *Handler) modelList() []map[string]any {
 		globalEfforts, globalDefaults := h.cfg.Upstream.GlobalEffortSnapshot()
 		for _, id := range globalIDs {
 			if _, ok := hidden["global:"+id]; ok {
+				continue
+			}
+			if _, ok := disabled["global:"+id]; ok {
 				continue
 			}
 			entry := map[string]any{
@@ -610,6 +679,16 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		writeOpenAIErrorHint(w, http.StatusBadRequest, "model_unavailable",
 			"model is hidden by gateway configuration, try another model", "")
 		st.status = http.StatusBadRequest
+		st.outcome = reqlog.OutcomeHTTPError
+		return
+	}
+
+	// models.disabled（面板「模型管理」停用）：同样不打上游，返回 model_disabled。
+	// 面板内部「测试模型」请求放行（停用前后都能测）。
+	if _, off := h.loadLive().DisabledModels[realm+":"+bareModel]; off && !isInternal(r) {
+		writeOpenAIError(w, http.StatusForbidden, "model_disabled",
+			fmt.Sprintf("model %s:%s is disabled by the gateway administrator", realm, bareModel))
+		st.status = http.StatusForbidden
 		st.outcome = reqlog.OutcomeHTTPError
 		return
 	}
