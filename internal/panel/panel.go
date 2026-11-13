@@ -11,6 +11,8 @@
 package panel
 
 import (
+	"context"
+	"fmt"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -21,10 +23,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/linguo2625469/workbuddy2api-panel/internal/apikeys"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/auth"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/credithist"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/httpauth"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/livecfg"
+	"github.com/linguo2625469/workbuddy2api-panel/internal/panelstore"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/pool"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/reqlog"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/scheduler"
@@ -39,6 +43,7 @@ type Config struct {
 	Scheduler *scheduler.Scheduler // 手动触发签到/保活；nil 时对应接口返回 501
 	AuthDir   string               // OAuth 登录完成后凭证落盘目录
 	APIKey    string               // 空 = 不鉴权（与主服务同语义）；与 Live 同时给出时 Live 优先
+	AdminKey  string               // 面板管理密钥（config admin_key）；空 = 回落 APIKey
 	RedisMode string               // "upstash" / "noop"，仅观测透出
 	Version   string               // 面板版本号（展示用）
 
@@ -69,6 +74,13 @@ type Config struct {
 	// 写入；空或文件不存在 = model_probes 端点返回空集，面板不显示任何实测标注）。
 	// 只读展示：网关不解析、不依赖其内容做任何路由/出站决策。
 	ProbeFile string
+
+	// Keys 多 API Key 表（panel-v3「密钥管理」；nil = 接口返回空表 / 501）。
+	Keys *apikeys.Store
+	// Store 备注 / 任务记录 / 运行历史的持久化（panel-v3；nil = 只在内存不落盘的空实现）。
+	Store *panelstore.Store
+	// TestModel 面板「测试模型」：进程内发一次极短请求（main 注入，走真实 /v1/chat/completions 链路）。
+	TestModel func(ctx context.Context, model string) ModelTestResult
 }
 
 // Panel 管理面板 handler。挂载方式：外层 mux Handle("/panel/", panel)，
@@ -169,15 +181,15 @@ func (p *Panel) routes() {
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/disable", p.withAuth(p.accountDisable))
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/pause", p.withAuth(p.accountPause))
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/resume", p.withAuth(p.accountResume))
-	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/checkin", p.withAuth(p.accountCheckin))
-	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/balance", p.withAuth(p.accountBalance))
+	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/checkin", p.withAuth(p.recorded(scheduler.JobCheckin, p.accountCheckin)))
+	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/balance", p.withAuth(p.recorded(scheduler.JobBalance, p.accountBalance)))
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/remove", p.withAuth(p.accountRemove))
 	p.mux.HandleFunc("GET /panel/api/accounts/{uid}/tasks", p.withAuth(p.accountTasks))
-	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/tasks/accept", p.withAuth(p.accountTaskAccept))
-	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/tasks/accept_all", p.withAuth(p.taskAcceptAll))
-	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/tasks/claim", p.withAuth(p.accountTaskClaim))
-	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/tasks/auto", p.withAuth(p.accountTaskAuto))
-	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/tasks/auto_all", p.withAuth(p.accountTaskAutoAll))
+	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/tasks/accept", p.withAuth(p.recorded(scheduler.JobGrowth, p.accountTaskAccept)))
+	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/tasks/accept_all", p.withAuth(p.recorded(scheduler.JobGrowth, p.taskAcceptAll)))
+	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/tasks/claim", p.withAuth(p.recorded(scheduler.JobGrowth, p.accountTaskClaim)))
+	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/tasks/auto", p.withAuth(p.recorded(scheduler.JobGrowth, p.accountTaskAuto)))
+	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/tasks/auto_all", p.withAuth(p.recorded(scheduler.JobGrowth, p.accountTaskAutoAll)))
 	p.mux.HandleFunc("POST /panel/api/tasks/scan_all", p.withAuth(p.tasksScanAll))
 	p.mux.HandleFunc("POST /panel/api/tasks/run_queue", p.withAuth(p.tasksRunQueue))
 	p.mux.HandleFunc("GET /panel/api/tasks/queue", p.withAuth(p.tasksQueueStatus))
@@ -194,8 +206,9 @@ func (p *Panel) routes() {
 	p.mux.HandleFunc("GET /panel/api/config", p.withAuth(p.getConfig))
 	p.mux.HandleFunc("POST /panel/api/config", p.withAuth(p.saveConfig))
 	p.mux.HandleFunc("GET /panel/api/compensation", p.withAuth(p.compensation))
-	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/compensation", p.withAuth(p.accountCompensationClaim))
+	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/compensation", p.withAuth(p.recorded(scheduler.JobCompensate, p.accountCompensationClaim)))
 	p.mux.HandleFunc("POST /panel/api/compensation_all", p.withAuth(p.compensationAll))
+	p.routesV3()
 }
 
 // ServeHTTP 统一入口：先写安全响应头再分发，保证页面、静态资源、API
@@ -218,10 +231,14 @@ func (p *Panel) withAuth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// apiKey 当前生效密钥（Live 优先，回落静态字段）。
+// apiKey 面板当前生效的管理密钥：admin_key 优先，空则回落 api_key（Live 优先，回落静态字段）。
+// 注意：多 API Key（密钥管理里创建的调用密钥）不能登录面板——面板只认管理密钥。
 func (p *Panel) apiKey() string {
 	if p.cfg.Live != nil {
-		return p.cfg.Live.Load().APIKey
+		return p.cfg.Live.Load().PanelKey()
+	}
+	if p.cfg.AdminKey != "" {
+		return p.cfg.AdminKey
 	}
 	return p.cfg.APIKey
 }
@@ -265,6 +282,7 @@ func (p *Panel) overview(w http.ResponseWriter, r *http.Request) {
 		"uptime_sec":      int(time.Since(p.started).Seconds()),
 		"auth_required":   p.apiKey() != "",
 		"redis_mode":      p.cfg.RedisMode,
+		"storage":         p.storageLabel(),
 		"sticky_sessions": sticky,
 		"total":           total,
 		"healthy":         healthy,
@@ -464,6 +482,11 @@ func (p *Panel) models(w http.ResponseWriter, r *http.Request) {
 		}
 		writeErr(w, http.StatusServiceUnavailable, "没有可用账号：请先在面板添加账号再查询")
 		return
+	}
+	// panel-v3 模型启停：标注每个模型是否被 models.disabled 停用（停用不影响面板查看与测试）。
+	off := p.disabledModels()
+	for _, m := range out {
+		_, m["disabled"] = off[fmt.Sprint(m["id"])]
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "models": out})
 }

@@ -17,10 +17,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/linguo2625469/workbuddy2api-panel/internal/apikeys"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/auth"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/credithist"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/livecfg"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/panel"
+	"github.com/linguo2625469/workbuddy2api-panel/internal/panelstore"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/pool"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/redisstore"
 	"github.com/linguo2625469/workbuddy2api-panel/internal/reqlog"
@@ -257,13 +259,31 @@ func main() {
 	// 管理面板日志镜像：标准 log（stderr）与 chat 表格日志（stdout）双路复制进
 	// 面板环形缓冲，供 /panel/api/logs 读取；控制台输出行为完全不变。
 	// live 承载可热改字段（api_key/soft_rate/脱敏开关），面板保存配置时在线替换。
-	live := livecfg.New(livecfg.Snapshot{
-		APIKey:               cfg.APIKey,
-		SoftCooldown:         cfg.SoftRateDur,
-		SanitizeFingerprints: cfg.Features.SanitizeBlacklistFingerprints,
-		RecordClientInfo:     cfg.Logging.RequestClientInfo,
-		HiddenModels:         livecfg.NormalizeHiddenModels(cfg.Models.Hidden),
-	})
+	live := livecfg.New(liveFrom(cfg))
+	sch.SetExtras(extrasFrom(cfg))
+	if !cfg.Schedule.Enabled {
+		log.Printf("调度总开关已关闭（schedule.enabled=false）：定时任务不再自动运行，面板手动执行照常可用")
+	}
+	if cfg.Schedule.IntlDailyEnabled {
+		log.Printf("国际版每日活跃已启用：%v 点（网页通道=%v）", cfg.Schedule.IntlDailyHours, cfg.Schedule.IntlDailyWeb)
+	}
+
+	// panel-v3 持久化：多 API Key（含按 key 用量）与面板数据（备注 / 任务记录 / 运行历史），
+	// 与 state/usage/credit-history 同目录（本地文件，随 state_file 搬移，重启保留）。
+	keyStore, err := apikeys.Open(stateSibling(cfg.StateFile, "api-keys.json"))
+	if err != nil {
+		log.Fatalf("load api keys: %v", err)
+	}
+	keyStore.Start()
+	defer keyStore.Close()
+	panelStore, err := panelstore.Open(stateSibling(cfg.StateFile, "panel-store.json"))
+	if err != nil {
+		log.Fatalf("load panel store: %v", err)
+	}
+	panelStore.Start()
+	defer panelStore.Close()
+	sch.SetObserver(panel.NewStoreObserver(panelStore))
+	var mainHandler http.Handler // 「测试模型」在进程内调用主 handler（下方构建后赋值）
 	// 用量记录器：与 state 文件同目录，随 state_file 配置一起搬移。
 	// datapath 由 state 文件路径推出，避免再加一个配置项。
 	usagePath := usagePathFor(cfg.StateFile)
@@ -304,6 +324,10 @@ func main() {
 		Scheduler:   sch,
 		AuthDir:     cfg.AuthDir,
 		APIKey:      cfg.APIKey,
+		AdminKey:    cfg.AdminKey,
+		Keys:        keyStore,
+		Store:       panelStore,
+		TestModel:   modelTester(&mainHandler),
 		RedisMode:   redisMode,
 		StickyCount: sessCount,
 		Version:     appVersion,
@@ -352,7 +376,9 @@ func main() {
 		// 模型黑名单原始条目；运行期以 livecfg 快照为准（热生效），此处供
 		// Live 为 nil 的裸用/测试路径。
 		ModelsHidden: cfg.Models.Hidden,
+		Keys:         keyStore,
 	})
+	mainHandler = h
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -522,13 +548,8 @@ func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up 
 	}
 
 	// 4) 热应用：能立即生效的字段全部应用，并列出仍需重启的字段。
-	live.Store(livecfg.Snapshot{
-		APIKey:               newCfg.APIKey,
-		SoftCooldown:         newCfg.SoftRateDur,
-		SanitizeFingerprints: newCfg.Features.SanitizeBlacklistFingerprints,
-		RecordClientInfo:     newCfg.Logging.RequestClientInfo,
-		HiddenModels:         livecfg.NormalizeHiddenModels(newCfg.Models.Hidden),
-	})
+	live.Store(liveFrom(newCfg))
+	sch.SetExtras(extrasFrom(newCfg))
 	up.SanitizeFingerprints.Store(newCfg.Features.SanitizeBlacklistFingerprints)
 	p.SetBreaker(newCfg.Pool.BreakerThreshold, newCfg.BreakerCooldownDur, newCfg.BreakerCooldownMaxD)
 	p.SetMaxInFlight(newCfg.Pool.MaxInFlight)

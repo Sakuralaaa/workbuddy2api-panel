@@ -3,6 +3,7 @@
 package scheduler
 
 import (
+	"fmt"
 	"log"
 	"time"
 
@@ -19,7 +20,9 @@ var nowForNightWindow = time.Now
 
 // RunBlackcatNow 对所有可用账号执行夜猫子对话补足（窗口外跳过）。
 // 由 blackcat_hours 排程（默认 [23]）触发；执行前二次校验 InNightWindow。
-func (s *Scheduler) RunBlackcatNow() {
+func (s *Scheduler) RunBlackcatNow() { s.track(JobBlackcat, "manual", s.runBlackcat) }
+
+func (s *Scheduler) runBlackcat() {
 	if !upstream.InNightWindow(nowForNightWindow()) {
 		log.Printf("blackcat: 当前不在 23:00–08:00 计数窗口，跳过")
 		return
@@ -44,6 +47,7 @@ func (s *Scheduler) RunBlackcatNow() {
 		need, err := s.cfg.Upstream.BlackcatNeed(a)
 		if err != nil {
 			log.Printf("blackcat %s: %v", logfmt.Label(a.UID, a.Nickname), err)
+			s.noteErr(JobBlackcat, a, err)
 			continue
 		}
 		if need <= 0 {
@@ -52,9 +56,11 @@ func (s *Scheduler) RunBlackcatNow() {
 		ok, err := s.cfg.Upstream.RunNightChats(a, int(need))
 		if err != nil {
 			log.Printf("blackcat %s: %d/%d 完成，中断: %v", logfmt.Label(a.UID, a.Nickname), ok, need, err)
+			s.note(JobBlackcat, a, false, "failed", fmt.Sprintf("%d/%d 完成，中断: %v", ok, need, err), 0)
 			continue
 		}
 		log.Printf("blackcat %s: 完成 %d 次夜间对话", logfmt.Label(a.UID, a.Nickname), ok)
+		s.note(JobBlackcat, a, true, "done", fmt.Sprintf("完成 %d 次夜间对话", ok), 0)
 		time.Sleep(activityAccountDelay)
 	}
 }

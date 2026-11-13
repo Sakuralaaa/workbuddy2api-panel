@@ -8,7 +8,9 @@ package scheduler
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/linguo2625469/workbuddy2api-panel/internal/auth"
@@ -32,17 +34,34 @@ func (s *Scheduler) RunStreakBonusNow() {
 		if a.IsEnterpriseSession() {
 			continue // 企业版 / 企业切换会话门控：无成长体系（/activity/growth/streak 企业号 403；切换会话 200 但不计分）
 		}
-		s.streakBonusAccount(a)
+		s.streakOne(a)
 	}
 }
 
+// streakOne 单账号连登管家并留痕（细节仍写运行日志）。
+func (s *Scheduler) streakOne(a *auth.Auth) JobResult {
+	if a.IsGlobal() || a.IsEnterpriseSession() {
+		return s.note(JobStreak, a, true, "skipped", "连登管家只适用于国内版个人账号", 0)
+	}
+	msg, err := s.streakBonusAccount(a)
+	if err != nil {
+		return s.noteErr(JobStreak, a, err)
+	}
+	if msg == "" {
+		return s.note(JobStreak, a, true, "skipped", "没有可兑换档位或抽奖次数", 0)
+	}
+	return s.note(JobStreak, a, true, "done", msg, 0)
+}
+
 // streakBonusAccount 单账号：补签保连登 → 礼包/补偿 → 兑换所有已解锁档位 → 抽完所有 chances。
-func (s *Scheduler) streakBonusAccount(a *auth.Auth) {
+func (s *Scheduler) streakBonusAccount(a *auth.Auth) (string, error) {
+	var done []string
 	// 0. 补签保连登：昨日漏签且有补签卡则补上（连续天数一断就要重攒 7 天）。
 	s.makeupYesterday(a)
 	// 0.5 礼包/补偿（每号一次，无则业务错误静默跳过）。
 	if credit, err := s.cfg.Upstream.ClaimGift(a); err == nil {
 		log.Printf("streak-bonus %s: 🎊 新手礼包 +%dc", logfmt.Label(a.UID, a.Nickname), credit)
+		done = append(done, fmt.Sprintf("新手礼包 +%d", credit))
 	}
 	// 补偿改为「先查状态 → 待领才领」（issue #189）：旧写法 `if credit, err :=
 	// ClaimCompensation(...); err == nil` 把「没有补偿」「已经领过」与「领取真的
@@ -53,7 +72,7 @@ func (s *Scheduler) streakBonusAccount(a *auth.Auth) {
 	full, err := s.cfg.Upstream.GrowthStreakFull(a)
 	if err != nil {
 		log.Printf("streak-bonus %s: %v", logfmt.Label(a.UID, a.Nickname), err)
-		return
+		return strings.Join(done, "；"), err
 	}
 	statuses := map[string]string{
 		"7d":  full.RedemptionStatus.Tier7dStatus,
@@ -72,24 +91,27 @@ func (s *Scheduler) streakBonusAccount(a *auth.Auth) {
 		}
 		log.Printf("streak-bonus %s: ★ 兑换 %s 档（+%dc +%de 卡×%d 抽奖×%d）",
 			a.UID, tier.Tier, tier.Credit, tier.Energy, tier.Cards, tier.Chances)
+		done = append(done, "兑换 "+tier.Tier+" 档")
 	}
 	// 抽奖：按当前 chances 全抽完（兑换刚发的次数已在服务端累加）。
 	chances, err := s.cfg.Upstream.LotteryChances(a)
 	if err != nil {
 		log.Printf("streak-bonus %s: lottery summary: %v", logfmt.Label(a.UID, a.Nickname), err)
-		return
+		return strings.Join(done, "；"), nil
 	}
 	for i := 0; i < chances; i++ {
 		raw, err := s.cfg.Upstream.LotteryDraw(a)
 		if err != nil {
 			log.Printf("streak-bonus %s: draw: %v", logfmt.Label(a.UID, a.Nickname), err)
-			return
+			return strings.Join(done, "；"), err
 		}
 		log.Printf("streak-bonus %s: 🎲 第%d抽 %s", logfmt.Label(a.UID, a.Nickname), i+1, compactJSON(raw))
 	}
 	if chances > 0 {
 		log.Printf("streak-bonus %s: 抽奖完成 %d 次", logfmt.Label(a.UID, a.Nickname), chances)
+		done = append(done, fmt.Sprintf("抽奖 %d 次", chances))
 	}
+	return strings.Join(done, "；"), nil
 }
 
 // compactJSON 裁剪奖品载荷（日志单行可读）。

@@ -19,7 +19,10 @@ import (
 // Config 顶层配置。
 type Config struct {
 	Listen    string `json:"listen"`     // ":7863"
-	APIKey    string `json:"api_key"`    // 空 = 不鉴权
+	APIKey    string `json:"api_key"`    // 空 = 不鉴权（/v1/* 调用密钥；另可在面板「密钥管理」创建多个）
+	// AdminKey 管理面板密钥（登录封面输入的密钥，所有 /panel/api/* 服务端强制校验）。
+	// 空 = 回落 api_key（旧行为）；两者都空 = 面板不鉴权（仅建议本机使用）。热生效。
+	AdminKey  string `json:"admin_key"`
 	AuthDir   string `json:"auth_dir"`   // ./auths
 	StateFile string `json:"state_file"` // ./data/state.json
 	// DNSServers 出站解析用的 DNS 服务器（空 = 系统解析器）；也可用 WB2A_DNS 覆盖。
@@ -117,6 +120,20 @@ type Config struct {
 		// 只做 accept/claim 两条幂等请求，不跑任何行为链路；分钟级开销可忽略。
 		TaskSweepEnabled bool `json:"task_sweep_enabled"` // 缺省 true；false = 关闭
 		TaskSweepMinutes int  `json:"task_sweep_minutes"` // 缺省 15；<=0 回落 15
+
+		// Enabled 调度总开关（缺省 true）。false = 所有定时任务与任务补领清扫停止自动运行，
+		// 面板手动执行照常可用；余额后台刷新不受影响（它是选号依据）。热生效。
+		Enabled bool `json:"enabled"`
+		// 国际版每日活跃（移植自 WorkBuddy-plugins tasks.intl_daily / intl_daily_web）：
+		// 对 realm=global 账号发一次桌面通道短对话；intl_daily_web=true 再跑一条网页云端会话。
+		// 当天成功一次后，后续时点自动跳过。缺省关闭。
+		IntlDailyEnabled bool     `json:"intl_daily_enabled"`
+		IntlDailyHours   []int    `json:"intl_daily_hours"`  // 缺省 [10, 20]
+		IntlDailyWeb     bool     `json:"intl_daily_web"`    // 缺省 false
+		IntlDailyModels  []string `json:"intl_daily_models"` // 缺省 ["deepseek-v4.1-flash"]，依次尝试
+		IntlDailyPrompt  string   `json:"intl_daily_prompt"` // 缺省 "Hi"
+		// TravelOpenBoxes 猫猫旅行巡检后用多余能量开 Buddy 盲盒（缺省 false）。
+		TravelOpenBoxes bool `json:"travel_open_boxes"`
 	} `json:"schedule"`
 
 	Global struct {
@@ -187,6 +204,9 @@ type Config struct {
 		// 生效点：GET /v1/models 列表过滤 + POST /v1/chat/completions 点名拒绝。
 		// 面板保存后经 livecfg 热生效，无需重启。
 		Hidden []string `json:"hidden"`
+		// Disabled 面板「模型管理」里停用的模型（"cn:xxx"/"global:xxx"；裸名=两域）。
+		// 停用的模型不出现在 /v1/models，点名调用返回 403 + code=model_disabled。热生效。
+		Disabled []string `json:"disabled"`
 	} `json:"models"`
 
 	Prompt struct {
@@ -310,6 +330,10 @@ func Default() *Config {
 	c.Schedule.BalanceRefreshMinutes = 5
 	c.Schedule.TaskSweepEnabled = true
 	c.Schedule.TaskSweepMinutes = 15
+	c.Schedule.Enabled = true
+	c.Schedule.IntlDailyHours = []int{10, 20}
+	c.Schedule.IntlDailyModels = []string{"deepseek-v4.1-flash"}
+	c.Schedule.IntlDailyPrompt = "Hi"
 	c.Upstream.TimeoutSeconds = 120
 	// HeaderTimeoutSeconds/IdleTimeoutSeconds 默认 0（未设置态），回落见 normalize()。
 	c.Upstream.HeaderTimeoutSeconds = 0
@@ -426,6 +450,9 @@ func applyEnv(c *Config) {
 	}
 	if v := os.Getenv("WB2A_API_KEY"); v != "" {
 		c.APIKey = v
+	}
+	if v := os.Getenv("WB2A_ADMIN_KEY"); v != "" {
+		c.AdminKey = v
 	}
 	if v := os.Getenv("WB2A_AUTH_DIR"); v != "" {
 		c.AuthDir = v
@@ -646,6 +673,15 @@ func (c *Config) normalize() error {
 	if len(c.Schedule.GrowthHours) == 0 {
 		c.Schedule.GrowthHours = []int{1}
 	}
+	if len(c.Schedule.IntlDailyHours) == 0 {
+		c.Schedule.IntlDailyHours = []int{10, 20}
+	}
+	if len(c.Schedule.IntlDailyModels) == 0 {
+		c.Schedule.IntlDailyModels = []string{"deepseek-v4.1-flash"}
+	}
+	if strings.TrimSpace(c.Schedule.IntlDailyPrompt) == "" {
+		c.Schedule.IntlDailyPrompt = "Hi"
+	}
 	// 余额后台刷新：启用时 minutes<=0 回落默认 5；关闭时 interval 保持 0（不启动）。
 	if c.Schedule.BalanceRefreshEnabled {
 		if c.Schedule.BalanceRefreshMinutes <= 0 {
@@ -712,6 +748,9 @@ func (c *Config) validateScheduleHours() error {
 		return err
 	}
 	if err := checkHourRange("schedule.blackcat_hours", "blackcat_enabled", c.Schedule.BlackcatHours); err != nil {
+		return err
+	}
+	if err := checkHourRange("schedule.intl_daily_hours", "intl_daily_enabled", c.Schedule.IntlDailyHours); err != nil {
 		return err
 	}
 	return checkHourRange("schedule.growth_hours", "growth_enabled", c.Schedule.GrowthHours)
