@@ -348,15 +348,21 @@ $('btnKey').onclick = async () => {
   localStorage.setItem(LS_KEY, v);
   const b = $('btnKey');
   b.disabled = true;
+  let ok = false;
   try {
-    await api('auth/check');
-    $('keyErr').hidden = true;
-    $('keyInput').value = '';
-    closeKey();
-    start();
-    go(view);
-  } catch (e) { $('keyErr').hidden = false; $('keyInput').select(); }
-  finally { b.disabled = false; }
+    const r = await fetch('/panel/api/auth/check', { headers: { Authorization: 'Bearer ' + v } });
+    if (r.status === 401) { $('keyErr').textContent = '密钥不正确，请重试。'; }
+    else if (r.ok) ok = true;
+    else { $('keyErr').textContent = '服务暂时不可用（HTTP ' + r.status + '），请稍后再试。'; }
+  } catch (e) { $('keyErr').textContent = '连不上服务：' + (e.message || e); }
+  b.disabled = false;
+  if (!ok) { $('keyErr').hidden = false; $('keyInput').select(); return; }
+  $('keyErr').hidden = true;
+  $('keyInput').value = '';
+  closeKey();
+  // 进门后的渲染错误不能再算成「密钥不正确」：单独兜住并提示。
+  try { start(); go(view); }
+  catch (e) { console.error(e); toast('页面加载出错：' + (e.message || e) + '，请强制刷新（Ctrl+F5）', 'err'); }
 };
 if ($('btnLogout')) $('btnLogout').onclick = () => {
   localStorage.removeItem(LS_KEY);

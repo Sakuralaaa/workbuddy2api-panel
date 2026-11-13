@@ -12,7 +12,10 @@
 package panel
 
 import (
+	"bytes"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"net/http"
 )
 
@@ -46,6 +49,33 @@ const csp = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inl
 	"connect-src 'self'; img-src 'self' data:; form-action 'none'; " +
 	"frame-ancestors 'none'; base-uri 'none'"
 
+// assetVer 前端资源内容摘要：index.html 里的 app.js / v3.js / mobile.js / mobile.css
+// 引用都带 ?v=<摘要>，升级后浏览器必然拉新脚本，不会出现「新页面 + 旧缓存脚本」
+// 混跑（症状：密钥正确却提示密钥不正确、页面空白）。
+var assetVer = func() string {
+	h := sha256.New()
+	for _, b := range [][]byte{indexHTML, appJS, v3JS, mobileJS, mobileCSS} {
+		h.Write(b)
+	}
+	return hex.EncodeToString(h.Sum(nil))[:12]
+}()
+
+// indexPage 带版本参数的页面骨架（启动时改写一次）。
+var indexPage = func() []byte {
+	out := indexHTML
+	for _, ref := range []string{`src="app.js"`, `src="v3.js"`, `src="mobile.js"`, `href="mobile.css"`} {
+		withVer := ref[:len(ref)-1] + "?v=" + assetVer + `"`
+		out = bytes.ReplaceAll(out, []byte(ref), []byte(withVer))
+	}
+	return out
+}()
+
+// noCache 面板页面与脚本每次都向服务端确认（内容不变时浏览器仍可用 304/本地副本），
+// 升级后立即生效。
+func noCache(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-cache")
+}
+
 // setSecurityHeaders 写入面板统一安全响应头（页面与 API 都要，API 也含 JSON 数据）。
 func setSecurityHeaders(w http.ResponseWriter) {
 	w.Header().Set("Content-Security-Policy", csp)
@@ -59,14 +89,16 @@ func setSecurityHeaders(w http.ResponseWriter) {
 // index 输出面板页面（静态无秘密；数据接口 /panel/api/* 才走鉴权）。
 func (p *Panel) index(w http.ResponseWriter, r *http.Request) {
 	setSecurityHeaders(w)
+	noCache(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(indexHTML)
+	_, _ = w.Write(indexPage)
 }
 
 // appScript 输出前端逻辑（同源脚本，供 CSP script-src 'self' 加载）。
 func (p *Panel) appScript(w http.ResponseWriter, r *http.Request) {
 	setSecurityHeaders(w)
+	noCache(w)
 	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(appJS)
@@ -76,6 +108,7 @@ func (p *Panel) appScript(w http.ResponseWriter, r *http.Request) {
 // 单独成文而非写进 index.html：上游频繁改 index.html，独立文件可避免同步上游时反复冲突。
 func (p *Panel) mobileStyle(w http.ResponseWriter, r *http.Request) {
 	setSecurityHeaders(w)
+	noCache(w)
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(mobileCSS)
@@ -84,6 +117,7 @@ func (p *Panel) mobileStyle(w http.ResponseWriter, r *http.Request) {
 // v3Script 输出 panel-v3 页面逻辑（同源脚本，须在 app.js 之后、mobile.js 之前加载）。
 func (p *Panel) v3Script(w http.ResponseWriter, r *http.Request) {
 	setSecurityHeaders(w)
+	noCache(w)
 	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(v3JS)
@@ -92,6 +126,7 @@ func (p *Panel) v3Script(w http.ResponseWriter, r *http.Request) {
 // mobileScript 输出手机端联动逻辑（同源脚本，须在 app.js 之后加载）。
 func (p *Panel) mobileScript(w http.ResponseWriter, r *http.Request) {
 	setSecurityHeaders(w)
+	noCache(w)
 	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(mobileJS)

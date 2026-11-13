@@ -70,8 +70,17 @@ func TestIndexReferencesExternalScript(t *testing.T) {
 	p.ServeHTTP(rec, httptest.NewRequest("GET", "/panel/", nil))
 	body := rec.Body.String()
 
-	if !strings.Contains(body, `<script src="app.js"></script>`) {
-		t.Error("index.html must load app.js externally (inline script is blocked by CSP)")
+	if !strings.Contains(body, `<script src="app.js?v=`+assetVer+`"></script>`) {
+		t.Error("index.html must load app.js externally with the asset version (inline script is blocked by CSP)")
+	}
+	if got := rec.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Errorf("index Cache-Control = %q, want no-cache (stale scripts after upgrade)", got)
+	}
+	// 带版本参数的脚本地址必须仍能命中路由。
+	js := httptest.NewRecorder()
+	p.ServeHTTP(js, httptest.NewRequest("GET", "/panel/app.js?v="+assetVer, nil))
+	if js.Code != 200 || js.Header().Get("Cache-Control") != "no-cache" {
+		t.Errorf("app.js?v= → %d cache=%q", js.Code, js.Header().Get("Cache-Control"))
 	}
 	// 反例保护：出现内联 <script>...</script> 内容块即为回归
 	if strings.Contains(body, "<script>\n") || strings.Contains(body, "<script> ") {
