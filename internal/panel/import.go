@@ -60,9 +60,14 @@ func (p *Panel) importCockpit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var accounts []cockpitAccount
-	if err := json.Unmarshal(raw, &accounts); err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid json: "+err.Error())
-		return
+	if err := json.Unmarshal(raw, &accounts); err != nil || !looksCockpit(accounts) {
+		// panel-v3：不是 cockpit 数组 → 按桌面端 .info / 登录 token JSON 解析（单个、列表或嵌套）。
+		found, ferr := signInsAsCockpit(raw)
+		if ferr != nil {
+			writeErr(w, http.StatusBadRequest, ferr.Error())
+			return
+		}
+		accounts = found
 	}
 	if len(accounts) == 0 {
 		writeErr(w, http.StatusBadRequest, "empty accounts array")
@@ -78,7 +83,7 @@ func (p *Panel) importCockpit(w http.ResponseWriter, r *http.Request) {
 		rt := strings.TrimSpace(acc.RefreshToken)
 		if uid == "" || at == "" || rt == "" {
 			skipped++
-			errs = append(errs, fmt.Sprintf("missing required fields (id=%s)", acc.ID))
+			errs = append(errs, fmt.Sprintf("缺少 uid / access token / refresh token (id=%s)", acc.ID))
 			continue
 		}
 		if !validImportUID(uid) {
