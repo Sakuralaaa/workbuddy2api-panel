@@ -281,6 +281,9 @@ func main() {
 		log.Fatalf("load panel store: %v", err)
 	}
 	panelStore.Start()
+	if err := sch.SetCampaignFile(stateSibling(cfg.StateFile, "activities.json")); err != nil {
+		log.Printf("[campaign] 活动快照读取失败（忽略，重新发现）: %v", err)
+	}
 	defer panelStore.Close()
 	sch.SetObserver(panel.NewStoreObserver(panelStore))
 	var mainHandler http.Handler // 「测试模型」在进程内调用主 handler（下方构建后赋值）

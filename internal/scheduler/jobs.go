@@ -115,6 +115,11 @@ type Extras struct {
 	IntlDailyPrompt  string   // 缺省 "Hi"
 	// TravelOpenBoxes 旅行巡检后用多余能量开 Buddy 盲盒（schedule.travel_open_boxes，缺省 false）。
 	TravelOpenBoxes bool
+	// ActivityTasksEnabled 限时活动任务（schedule.activity_tasks，缺省 true）：定时发现并完成
+	// 星巴克 / 记者节等运营活动。ActivityTasksHours 缺省 [11, 20]；ActivityCodes 追加候选活动 code。
+	ActivityTasksEnabled bool
+	ActivityTasksHours   []int
+	ActivityCodes        []string
 }
 
 func newRunID() string {
@@ -134,6 +139,9 @@ func (s *Scheduler) SetObserver(o Observer) {
 func (s *Scheduler) SetExtras(e Extras) {
 	if len(e.IntlDailyHours) == 0 {
 		e.IntlDailyHours = []int{10, 20}
+	}
+	if len(e.ActivityTasksHours) == 0 {
+		e.ActivityTasksHours = []int{11, 20}
 	}
 	s.schedMu.Lock()
 	s.extras = e
@@ -339,7 +347,7 @@ var ErrUnknownJob = errors.New("unknown job")
 // RunJobFor 对单个账号立即执行一个任务，返回其结果（也写入任务记录）。
 func (s *Scheduler) RunJobFor(job, uid string) (JobResult, error) {
 	switch job {
-	case JobCheckin, JobTravel, JobOpenBoxes, JobActivity, JobKeepalive, JobIntlDaily, JobStreak:
+	case JobCheckin, JobTravel, JobOpenBoxes, JobActivity, JobKeepalive, JobIntlDaily, JobStreak, JobCampaign:
 	default:
 		return JobResult{}, ErrUnknownJob
 	}
@@ -367,6 +375,8 @@ func (s *Scheduler) RunJobFor(job, uid string) (JobResult, error) {
 			out = s.intlDailyOne(context.Background(), a)
 		case JobStreak:
 			out = s.streakOne(a)
+		case JobCampaign:
+			out = s.campaignOne(a, true)
 		}
 	}
 	s.track(job, "manual", run)
@@ -408,6 +418,7 @@ func (s *Scheduler) NextRuns(now time.Time) map[string]time.Time {
 	add(JobBlackcat, c.BlackcatDisabled, c.BlackcatHours)
 	add(JobGrowth, c.GrowthDisabled || c.GrowthHook == nil, c.GrowthHours)
 	add(JobIntlDaily, !ex.IntlDailyEnabled, ex.IntlDailyHours)
+	add(JobCampaign, !ex.ActivityTasksEnabled, ex.ActivityTasksHours)
 	return out
 }
 

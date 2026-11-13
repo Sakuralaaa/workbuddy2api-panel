@@ -191,3 +191,28 @@ func TestNotesAndRecordsPersist(t *testing.T) {
 		t.Fatal("note not cleared")
 	}
 }
+
+// 限时活动接口：列表（含开关 / 新活动数）、确认新活动、全部执行入口已注册。
+func TestActivitiesAPI(t *testing.T) {
+	sch := scheduler.New(scheduler.Config{Pool: pool.New("")})
+	if err := sch.SetCampaignFile(filepath.Join(t.TempDir(), "activities.json")); err != nil {
+		t.Fatal(err)
+	}
+	sch.SetExtras(scheduler.Extras{Enabled: true, ActivityTasksEnabled: true})
+	p := New(Config{Scheduler: sch, Pool: pool.New(""), Store: mustStore(t, "")})
+	rec := doReq(p, "GET", "/panel/api/activities", "", "")
+	if rec.Code != 200 {
+		t.Fatalf("list=%d %s", rec.Code, rec.Body)
+	}
+	var d map[string]any
+	_ = json.Unmarshal(rec.Body.Bytes(), &d)
+	if d["enabled"] != true || d["new_count"].(float64) != 0 {
+		t.Fatalf("payload=%v", d)
+	}
+	if rec := doReq(p, "POST", "/panel/api/activities/seen", "", ""); rec.Code != 200 {
+		t.Fatalf("seen=%d", rec.Code)
+	}
+	if _, ok := p.bulkJobs()[scheduler.JobCampaign]; !ok {
+		t.Fatal("campaign missing from run_all jobs")
+	}
+}

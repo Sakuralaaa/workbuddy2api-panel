@@ -134,6 +134,11 @@ type Config struct {
 		IntlDailyPrompt  string   `json:"intl_daily_prompt"` // 缺省 "Hi"
 		// TravelOpenBoxes 猫猫旅行巡检后用多余能量开 Buddy 盲盒（缺省 false）。
 		TravelOpenBoxes bool `json:"travel_open_boxes"`
+		// 限时活动任务（星巴克协作 / 记者节 等 /portal/activity/* 运营活动）：定时自动发现
+		// 每个国内版个人账号已下发的活动，完成可纯 API 完成的任务并领奖；需真人的任务只列出。
+		ActivityTasks      bool     `json:"activity_tasks"`       // 缺省 true
+		ActivityTasksHours []int    `json:"activity_tasks_hours"` // 缺省 [11, 20]
+		ActivityCodes      []string `json:"activity_codes"`       // 追加候选活动 code（自动发现之外）
 	} `json:"schedule"`
 
 	Global struct {
@@ -334,6 +339,8 @@ func Default() *Config {
 	c.Schedule.IntlDailyHours = []int{10, 20}
 	c.Schedule.IntlDailyModels = []string{"deepseek-v4.1-flash"}
 	c.Schedule.IntlDailyPrompt = "Hi"
+	c.Schedule.ActivityTasks = true
+	c.Schedule.ActivityTasksHours = []int{11, 20}
 	c.Upstream.TimeoutSeconds = 120
 	// HeaderTimeoutSeconds/IdleTimeoutSeconds 默认 0（未设置态），回落见 normalize()。
 	c.Upstream.HeaderTimeoutSeconds = 0
@@ -682,6 +689,9 @@ func (c *Config) normalize() error {
 	if strings.TrimSpace(c.Schedule.IntlDailyPrompt) == "" {
 		c.Schedule.IntlDailyPrompt = "Hi"
 	}
+	if len(c.Schedule.ActivityTasksHours) == 0 {
+		c.Schedule.ActivityTasksHours = []int{11, 20}
+	}
 	// 余额后台刷新：启用时 minutes<=0 回落默认 5；关闭时 interval 保持 0（不启动）。
 	if c.Schedule.BalanceRefreshEnabled {
 		if c.Schedule.BalanceRefreshMinutes <= 0 {
@@ -751,6 +761,9 @@ func (c *Config) validateScheduleHours() error {
 		return err
 	}
 	if err := checkHourRange("schedule.intl_daily_hours", "intl_daily_enabled", c.Schedule.IntlDailyHours); err != nil {
+		return err
+	}
+	if err := checkHourRange("schedule.activity_tasks_hours", "activity_tasks", c.Schedule.ActivityTasksHours); err != nil {
 		return err
 	}
 	return checkHourRange("schedule.growth_hours", "growth_enabled", c.Schedule.GrowthHours)

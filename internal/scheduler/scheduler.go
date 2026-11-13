@@ -103,6 +103,8 @@ type Scheduler struct {
 	extras Extras
 	// js 执行留痕状态（jobs.go）。
 	js jobState
+	// camp 限时活动快照（campaign.go）。
+	camp campaignState
 }
 
 // New 构建。
@@ -128,7 +130,7 @@ func New(cfg Config) *Scheduler {
 		rearmSchedule: make(chan struct{}, 1),
 		rearmBalance:  make(chan struct{}, 1),
 		rearmSweep:    make(chan struct{}, 1),
-		extras:        Extras{Enabled: true, IntlDailyHours: []int{10, 20}},
+		extras:        Extras{Enabled: true, IntlDailyHours: []int{10, 20}, ActivityTasksHours: []int{11, 20}},
 	}
 }
 
@@ -247,6 +249,7 @@ const (
 	taskBlackcat
 	taskGrowth
 	taskIntlDaily
+	taskCampaign
 )
 
 // nextWake 返回 now 之后最近的唤醒时刻，以及该时刻需要执行的全部任务。
@@ -291,6 +294,9 @@ func (s *Scheduler) nextWake(now time.Time) (time.Time, []taskKind) {
 	}
 	if ex.IntlDailyEnabled {
 		slots = append(slots, slot{nextFire(now, ex.IntlDailyHours), taskIntlDaily})
+	}
+	if ex.ActivityTasksEnabled {
+		slots = append(slots, slot{nextFire(now, ex.ActivityTasksHours), taskCampaign})
 	}
 	var earliest time.Time
 	for _, sl := range slots {
@@ -444,6 +450,8 @@ func (s *Scheduler) runBatch(ctx context.Context, kinds []taskKind) {
 				s.track(JobBlackcat, "schedule", s.runBlackcat)
 			case taskIntlDaily:
 				s.track(JobIntlDaily, "schedule", func() { s.runIntlDaily(ctx, false) })
+			case taskCampaign:
+				s.track(JobCampaign, "schedule", func() { s.runCampaign(ctx, true) })
 			case taskGrowth:
 				// 成长任务队列：回调在 panel 侧异步启动（返回不等执行完），nil 未挂载则跳过。
 				s.schedMu.Lock()

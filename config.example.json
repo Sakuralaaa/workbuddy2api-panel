@@ -45,6 +45,9 @@
     "intl_daily_web": false,
     "intl_daily_models": ["deepseek-v4.1-flash"],
     "intl_daily_prompt": "Hi",
+    "activity_tasks": true,
+    "activity_tasks_hours": [11, 20],
+    "activity_codes": [],
     "include_disabled_in_tasks": false
   },
   "global": {

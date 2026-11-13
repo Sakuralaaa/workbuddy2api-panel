@@ -58,6 +58,10 @@ func (p *Panel) routesV3() {
 	p.mux.HandleFunc("POST /panel/api/accounts/{uid}/run", p.withAuth(p.accountRunJob))
 	p.mux.HandleFunc("POST /panel/api/jobs/{job}/run_all", p.withAuth(p.jobRunAll))
 	p.mux.HandleFunc("GET /panel/api/schedule/status", p.withAuth(p.scheduleStatus))
+
+	p.mux.HandleFunc("GET /panel/api/activities", p.withAuth(p.activitiesList))
+	p.mux.HandleFunc("POST /panel/api/activities/discover", p.withAuth(p.activitiesDiscover))
+	p.mux.HandleFunc("POST /panel/api/activities/seen", p.withAuth(p.activitiesSeen))
 }
 
 // storageLabel 状态栏「服务正常 · xxx」里的存储说明（反映实际持久化层）。
@@ -407,6 +411,7 @@ func (p *Panel) bulkJobs() map[string]func() {
 		scheduler.JobKeepalive: s.RunKeepaliveNow,
 		scheduler.JobBlackcat:  s.RunBlackcatNow,
 		scheduler.JobIntlDaily: s.RunIntlDailyNow,
+		scheduler.JobCampaign:  s.RunCampaignNow,
 		scheduler.JobTaskSweep: func() { s.RunTaskSweepNow() },
 		scheduler.JobBalance:   func() { s.RunBalanceRefreshNow(); p.syncNicknames() },
 	}
@@ -549,4 +554,57 @@ func (o storeObserver) RunDone(r scheduler.RunReport) {
 		Started: r.Started, Finished: r.Finished, Accounts: r.Accounts,
 		OK: r.OK, Failed: r.Failed, Skipped: r.Skipped, Credits: r.Credits,
 	})
+}
+
+// ---------------------------------------------------------------------------
+// 限时活动（星巴克 / 记者节 等运营活动）
+// ---------------------------------------------------------------------------
+
+func (p *Panel) activitiesPayload() map[string]any {
+	s := p.cfg.Scheduler
+	snap := s.CampaignSnapshot()
+	ex := s.GetExtras()
+	return map[string]any{
+		"accounts":  snap.Accounts,
+		"seen":      snap.Seen,
+		"new_count": snap.NewCount,
+		"last_scan": snap.LastScan,
+		"enabled":   ex.Enabled && ex.ActivityTasksEnabled,
+		"hours":     ex.ActivityTasksHours,
+		"running":   !s.ActiveJobs()[scheduler.JobCampaign].IsZero(),
+	}
+}
+
+func (p *Panel) activitiesList(w http.ResponseWriter, r *http.Request) {
+	if p.cfg.Scheduler == nil {
+		writeErr(w, http.StatusNotImplemented, "scheduler not available")
+		return
+	}
+	writeJSON(w, http.StatusOK, p.activitiesPayload())
+}
+
+// activitiesDiscover 同步发现：逐账号读活动列表（只读，不执行），返回最新快照。
+func (p *Panel) activitiesDiscover(w http.ResponseWriter, r *http.Request) {
+	s := p.cfg.Scheduler
+	if s == nil {
+		writeErr(w, http.StatusNotImplemented, "scheduler not available")
+		return
+	}
+	if !s.ActiveJobs()[scheduler.JobCampaign].IsZero() {
+		writeErr(w, http.StatusConflict, "限时活动正在执行中")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
+	defer cancel()
+	s.DiscoverCampaignsNow(ctx)
+	writeJSON(w, http.StatusOK, p.activitiesPayload())
+}
+
+func (p *Panel) activitiesSeen(w http.ResponseWriter, r *http.Request) {
+	if p.cfg.Scheduler == nil {
+		writeErr(w, http.StatusNotImplemented, "scheduler not available")
+		return
+	}
+	p.cfg.Scheduler.MarkCampaignsSeen()
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }

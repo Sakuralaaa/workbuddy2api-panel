@@ -27,6 +27,10 @@ func extrasFrom(c *Config) scheduler.Extras {
 		IntlDailyModels:  c.Schedule.IntlDailyModels,
 		IntlDailyPrompt:  c.Schedule.IntlDailyPrompt,
 		TravelOpenBoxes:  c.Schedule.TravelOpenBoxes,
+
+		ActivityTasksEnabled: c.Schedule.ActivityTasks,
+		ActivityTasksHours:   c.Schedule.ActivityTasksHours,
+		ActivityCodes:        c.Schedule.ActivityCodes,
 	}
 }
 
