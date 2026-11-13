@@ -122,9 +122,9 @@ WorkBuddy2API 是一个自托管的 **OpenAI 兼容反向代理网关**，将腾
 
 > ⚠️ 行为事件按天幂等：重复点「一键完成」不会重复扣资源，已达标的任务自动跳过。
 
-### 🧭 任务中心（面板新视图）
+### 🧭 任务管理（原「任务中心」）
 
-「任务中心」视图把散落的任务能力收拢成一处：
+「任务管理」页把散落的任务能力收拢成一处：
 
 - **全账号任务扫描**：一键拉取每个账号的成长任务（未完成且可自动化的 19 项，含小程序口径的「校园日」与「小程序首对话」）+ 开学季待办，列表一目了然
 - **执行队列**：把待办按账号排队执行——账号内串行（与单任务/一键完成共用互斥锁），账号间可选并发（1-3）；执行进度实时更新到每个条目
@@ -160,6 +160,31 @@ WorkBuddy2API 是一个自托管的 **OpenAI 兼容反向代理网关**，将腾
 ### 连登兑换与抽奖（自动）
 
 成长中心连登档位（连续登录 7/14/28 天）兑换后发放积分 / 能量 / 补签卡 / **抽奖次数**，抽奖次数只能从兑换获得。网关把它挂在每日签到排程末尾自动跑闭环（见[定时任务](#定时任务)）：档位解锁当天自动兑换、有抽奖次数自动抽完，全程无需人工盯。
+
+## 🖥️ 管理面板（panel-v3）
+
+浏览器打开 `http://<host>:7863/panel/`，在登录封面输入**管理密钥**（`admin_key`，未设置时回落 `api_key`）。密钥在服务端校验：所有 `/panel/api/*` 都强制鉴权，错误密钥一律 401。
+
+<p align="center">
+  <img src="docs/screenshots/panel-v3-accounts.png" alt="账号管理" width="860">
+</p>
+
+顶栏横排八个页面（手机端改为两行顶栏 + 横向滚动导航，宽表自动转卡片）：
+
+| 页面 | 内容 |
+|---|---|
+| 账号管理 | 账号卡片（余额进度、成功/失败、在途、Token、延迟、签到状态、备注），筛选与搜索、全部签到 / 全部账号执行、添加账号（浏览器登录或导入 cockpit 导出、桌面端 `.info` / 登录 token JSON）、模型锁池 |
+| 积分管理 | 每账号一行折叠：展开看积分构成、逐包到期与积分变动；积分到期提醒、官方补偿、到期分布、构成对比 |
+| 用量管理 | 「按密钥」：每个 API 密钥的请求数、成功率、Token、积分消耗与每日堆叠图，展开按日 / 按模型拆分；「按账号 / 模型 / 域」：原用量页 |
+| 模型管理 | 上游模型能力表（倍率、思考档位、上下文），每个模型一个**启用开关**（写入 `models.disabled`，热生效）与「测试」 |
+| 密钥管理 | 创建 / 改名 / 停用 / 删除多个 API 密钥；明文只在创建时显示一次，服务端只存摘要；近 7 天请求与 Token |
+| 任务管理 | 全部账号执行（签到、连登管家、旅行、开盲盒、活跃、国际版每日活跃、夜猫子、保活、任务补领）、每账号最近任务结果与单项执行、成长任务队列、**运行历史**（每轮汇总，展开看逐账号结果） |
+| 调度管理 | 调度器状态与各任务下一次执行时间、**调度总开关**、各任务时点与开关、服务与密钥、账号池与流量治理、上游与高级 |
+| 日志管理 | 请求记录（可按 API 密钥筛选）、运行日志（任务 / 对话 / 系统频道）、积分历史 |
+
+**多 API 密钥**：配置文件里的 `api_key` 仍然有效；另外可在「密钥管理」创建任意多个密钥，任一**启用中**的密钥都能调用 `/v1/*`。每个请求记录所用密钥，按 密钥 × 天 × 模型 统计（保留 90 天），数据存于 `state_file` 同目录的 `api-keys.json`。面板备注、任务记录与运行历史存于同目录的 `panel-store.json`。
+
+**模型启用 / 停用**：在「模型管理」关掉开关的模型从 `/v1/models` 消失，点名调用返回 `403 model_disabled`；与 `models.hidden`（400 `model_unavailable`）互不影响。
 
 ## 🆚 与上游的差异
 
@@ -377,7 +402,8 @@ curl -s http://localhost:7863/v1/search/messages \
 | 字段 | 默认 | 说明 |
 |---|---|---|
 | `listen` | `:7863` | HTTP 监听地址 |
-| `api_key` | 空 | 网关鉴权密钥；**空 = 不鉴权直接放行**（公网必须设置） |
+| `api_key` | 空 | 网关鉴权密钥；**空 = 不鉴权直接放行**（公网必须设置）。另可在面板「密钥管理」创建多个密钥，任一启用中的密钥都可调用 `/v1/*` |
+| `admin_key` | 空 | 管理面板密钥：登录封面与所有 `/panel/api/*` 校验它；空 = 回落 `api_key`；两者都空 = 面板不鉴权（仅建议本机）。热生效 |
 | `auth_dir` | `./auths` | 账号凭证目录 |
 | `state_file` | `./data/state.json` | 账号池状态持久化文件 |
 | `dns_servers` | 空 | **出站解析**用的 DNS 服务器（数组，按顺序试，都用不上才报错）；空 = 系统解析器。/etc/resolv.conf 不存在或不可用的环境（Android、精简容器）必须显式配，否则 Go 解析器会退回 `127.0.0.1:53`，查任何域名都变成"连本机 53 端口"（`dial tcp: lookup ... on [::1]:53: connection refused`）。只换 `Transport.DialContext`，不动超时与连接池 |
@@ -388,6 +414,7 @@ curl -s http://localhost:7863/v1/search/messages \
 | `logging.request_archive_max_mb` | `100` | 请求归档总容量上限（MiB）；超限优先删除最旧文件 |
 | `cooldown.soft_rate` | `600s` | 软限流（429 / 限流文案）冷却基数；同一账号连续触发按 2 倍指数退避 |
 | `cooldown.soft_rate_max` | `2h` | 软冷却指数退避封顶 |
+| `schedule.enabled` | `true` | **调度总开关**：`false` = 所有定时任务与任务补领清扫停止自动运行；面板手动执行照常可用，余额后台刷新不受影响。热生效 |
 | `schedule.checkin_hours` | `[9, 21]` | 每日本地时区整点签到 + 余额查询解冻。空数组 / `null` = 未配置回落默认（不是禁用） |
 | `schedule.travel_hours` | `[9, 21]` | 每日本地时区整点推进猫猫旅行状态机（领养 / 派出 / 领奖） |
 | `schedule.activity_hours` | `[10]` | 每日本地时区整点对话活跃上报（点亮连登 + 解锁 `first_buddy`） |
@@ -398,6 +425,14 @@ curl -s http://localhost:7863/v1/search/messages \
 | `schedule.activity_enabled` | `true` | 活跃上报总开关 |
 | `schedule.keepalive_enabled` | `true` | token 保活总开关 |
 | `schedule.blackcat_enabled` | `true` | 夜猫子总开关 |
+| `schedule.growth_enabled` / `growth_hours` | `true` / `[1]` | 成长任务到点自动「扫描 + 执行全部待办」 |
+| `schedule.task_sweep_enabled` / `task_sweep_minutes` | `true` / `15` | 任务补领清扫：把「已达标未领奖」的成长任务领掉（只发幂等 accept / claim） |
+| `schedule.travel_open_boxes` | `false` | 猫猫旅行巡检后用多余能量开 Buddy 盲盒 |
+| `schedule.intl_daily_enabled` | `false` | 国际版每日活跃（只对 `realm=global` 账号）：桌面通道发一条短对话；当天成功一次后后续时点自动跳过 |
+| `schedule.intl_daily_hours` | `[10, 20]` | 国际版每日活跃时点（本地时区整点） |
+| `schedule.intl_daily_web` | `false` | 同时跑网页通道（再开一次云端会话） |
+| `schedule.intl_daily_models` | `["deepseek-v4.1-flash"]` | 桌面通道使用的模型，依次尝试直到成功 |
+| `schedule.intl_daily_prompt` | `"Hi"` | 国际版每日活跃发送的对话内容 |
 | `schedule.include_disabled_in_tasks` | `false` | 让**保号类**四任务（签到 / 活跃上报 / token 保活 / 余额刷新）对**已禁用**账号也执行——「禁用」只关选号，不停保号。`false`（默认）保持「禁用的跳过」 |
 | `upstream.timeout_seconds` | `120` | 短 RPC（刷新 / 签到 / 余额 / 模型列表）总时长上限 |
 | `upstream.header_timeout_seconds` | 回落 `timeout_seconds` | 聊天首字节前（响应头）上限 |
@@ -405,6 +440,7 @@ curl -s http://localhost:7863/v1/search/messages \
 | `upstream.user_agent` | 空 | 出站 User-Agent 覆盖（空 = 现状 `CLI/2.63.2 CodeBuddy/2.63.2`）。官网「使用端」列按出站 UA 服务端归因；官方 WorkBuddy 桌面 UA 为 `WorkBuddy/<version>`，需要时可配 |
 | `features.sanitize_blacklist_fingerprints` | `true` | 出站请求体黑名单指纹脱敏 |
 | `models.hidden` | `[]` | 模型黑名单：不对外暴露的模型。裸名=两域都藏；`"cn:xxx"`/`"global:xxx"`=只藏该域。`GET /v1/models` 列表过滤 + `POST /v1/chat/completions` 点名拒绝（400 `model_unavailable`）。面板保存后热生效 |
+| `models.disabled` | `[]` | 面板「模型管理」开关停用的模型（写法同 `hidden`）。从 `/v1/models` 过滤，点名调用返回 403 `model_disabled`；面板切换即写回配置并热生效 |
 | `prompt.mode` | `custom` | 系统提示词模式：`custom` = 网关用自有提示词替换客户端 system；`append` = 开头连续 system/developer 块后插网关提示词（既有消息逐字不动）；`passthrough` = 透传客户端原始 system（降级重试仍切中性提示词） |
 | `prompt.file` | 空 | 提示词文件路径；空 = 内置默认（约 2KB）；路径非空但不可读 → 启动报错 |
 | `upstash.url` / `upstash.token` | 空 | 空 = 纯内存模式（Noop 降级，功能照常） |
@@ -443,7 +479,7 @@ curl -s http://localhost:7863/v1/search/messages \
 
 加载顺序：JSON 文件 → `WB2A_*` 环境变量（变量非空才覆盖）：
 
-`WB2A_LISTEN` · `WB2A_API_KEY` · `WB2A_AUTH_DIR` · `WB2A_STATE_FILE` · `WB2A_DNS`(逗号分隔多个) · `WB2A_MAX_BODY_MB` · `WB2A_SOFT_RATE`(duration) · `WB2A_SOFT_RATE_MAX`(duration) · `WB2A_TIMEOUT_SECONDS` · `WB2A_HEADER_TIMEOUT_SECONDS` · `WB2A_IDLE_TIMEOUT_SECONDS` · `WB2A_USER_AGENT` · `WB2A_SANITIZE_FINGERPRINTS`(bool) · `WB2A_PROMPT_MODE` · `WB2A_PROMPT_FILE`
+`WB2A_LISTEN` · `WB2A_API_KEY` · `WB2A_ADMIN_KEY` · `WB2A_AUTH_DIR` · `WB2A_STATE_FILE` · `WB2A_DNS`(逗号分隔多个) · `WB2A_MAX_BODY_MB` · `WB2A_SOFT_RATE`(duration) · `WB2A_SOFT_RATE_MAX`(duration) · `WB2A_TIMEOUT_SECONDS` · `WB2A_HEADER_TIMEOUT_SECONDS` · `WB2A_IDLE_TIMEOUT_SECONDS` · `WB2A_USER_AGENT` · `WB2A_SANITIZE_FINGERPRINTS`(bool) · `WB2A_PROMPT_MODE` · `WB2A_PROMPT_FILE`
 
 ## 核心行为语义
 

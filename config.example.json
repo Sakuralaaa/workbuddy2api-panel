@@ -1,6 +1,7 @@
 {
   "listen": ":7863",
   "api_key": "test_key",
+  "admin_key": "test_admin_key",
   "auth_dir": "./auths",
   "state_file": "./data/state.json",
   "dns_servers": [],
@@ -21,6 +22,7 @@
     "soft_rate_max": "2h"
   },
   "schedule": {
+    "enabled": true,
     "checkin_hours": [9, 21],
     "growth_hours": [1],
     "travel_hours": [9, 21],
@@ -35,6 +37,14 @@
     "blackcat_enabled": true,
     "balance_refresh_enabled": true,
     "balance_refresh_minutes": 5,
+    "task_sweep_enabled": true,
+    "task_sweep_minutes": 15,
+    "travel_open_boxes": false,
+    "intl_daily_enabled": false,
+    "intl_daily_hours": [10, 20],
+    "intl_daily_web": false,
+    "intl_daily_models": ["deepseek-v4.1-flash"],
+    "intl_daily_prompt": "Hi",
     "include_disabled_in_tasks": false
   },
   "global": {
@@ -64,8 +74,9 @@
     "sanitize_blacklist_fingerprints": true
   },
   "models": {
-    "_comment": "hidden: 不对外暴露的模型黑名单。裸名=两域都藏；\"cn:xxx\"/\"global:xxx\"=只藏该域。/v1/models 列表过滤 + chat 点名拒绝，面板保存后热生效。",
-    "hidden": []
+    "_comment": "hidden: 不对外暴露的模型黑名单（400 model_unavailable）；disabled: 面板「模型管理」开关停用的模型（403 model_disabled）。裸名=两域；\"cn:xxx\"/\"global:xxx\"=只该域。都会从 /v1/models 过滤，热生效。",
+    "hidden": [],
+    "disabled": []
   },
   "prompt": {
     "mode": "passthrough",
