@@ -199,8 +199,8 @@
   .uschart-body { padding: 6px 8px 2px; }
   .uschart-body .tk, .uschart-body .tk-avg { font-size: 13px; }
   .uschart-body .tk-peak { font-size: 13.5px; }
-  .uschart-body .usbar-p { fill: var(--accent); }
-  .uschart-body .usbar-c { fill: var(--ok); }
+  .uschart-body .usbar-p { fill: var(--c1); }
+  .uschart-body .usbar-c { fill: var(--c2); }
 
   /* 任务弹窗卡：任务+状态 / 进度·奖励 / 按钮 */
   #taskBody tr > .who { grid-column: 1 / 9; }
@@ -316,71 +316,91 @@
   .tag { max-width: 100%; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 }
 
-/* ══ 视觉层（2026-11 重设计）在手机端的配套 ═══════════════════════════════
-   主样式表换成了「KPI 磁贴 / 两行操作按钮栅格 / 用量 2×2 徽章 / 分段控件」等新形态，
+/* ══ 视觉层（2026-11 重设计 v2：中性底 + 单一强调色）在手机端的配套 ═══════════════
+   主样式表是「细框统计条 / 圆点状态 / 直出 1–2 个操作 + 更多菜单 / 分段控件」等形态，
    这里把它们在 ≤760px 下收回成卡片台口径。单独成块追加在末尾，不打散上面的既有规则。 */
 @media (max-width: 760px) {
-  body { background-attachment: scroll; }
-  .nav { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: var(--shadow-lg); }
-  .nav ul { padding: 2px 12px 10px; }
-  .topbar { height: auto; min-height: 54px; padding: 8px 12px; }
-  .topbar h2 { font-size: 16px; }
-  .topbar button { height: 34px; padding: 0 12px; }
-  .topbar button.icon { width: 34px; padding: 0; }
+  .nav { background: var(--surface); box-shadow: var(--shadow-lg); }
+  .nav ul { padding: 0 8px 8px; }
+  .nav-veil { background: rgba(10,10,9,.45); }
+  .topbar { height: auto; min-height: 52px; padding: 8px 12px; gap: 8px; }
+  .topbar h2 { font-size: 15px; }
+  .topbar button { height: 30px; padding: 0 10px; }
+  .topbar button.icon { width: 30px; padding: 0; }
   .view { padding: 12px 12px 48px; }
 
-  /* KPI 磁贴：3 列，积分总额独占末行 */
-  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: dense; gap: 8px; margin-bottom: 12px; }
-  .stat { padding: 10px 11px 11px; row-gap: 6px; column-gap: 6px; border-radius: 12px; }
+  /* 统计条：3 列，积分总额独占末行 */
+  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: dense; margin-bottom: 12px; border-radius: 10px; }
+  .stat { padding: 10px 12px; gap: 4px; }
   .stat.wide { grid-column: 1 / -1; order: 1; }
-  .stat .ic { width: 20px; height: 20px; border-radius: 6px; }
-  .stat .ic svg { width: 12px; height: 12px; }
-  .stat .k { font-size: 10.5px; }
-  .stat .v { font-size: 19px; white-space: nowrap; overflow-wrap: normal; }
-  .stat::before { display: none; }
+  .stat .k { font-size: 11px; }
+  .stat .v { font-size: 18px; white-space: nowrap; overflow-wrap: normal; }
 
-  .box { border-radius: 14px; }
-  .box > header { min-height: 0; padding: 11px 12px; }
-  .box > header h3 { overflow: visible; }
+  .box { border-radius: 10px; }
+  .box > header { min-height: 0; padding: 10px 12px; }
+  .box > header h3 { overflow: visible; font-size: 13px; }
   .box > header .note { overflow: visible; }
   .box .pad { padding: 12px; }
 
   /* 表格卡片：撤掉桌面端的首末列缩进与粘性表头 */
   .acc td, .acc td:first-child, .acc td:last-child,
-  .acc.md td, .acc.req td, .acc.md td:nth-child(2), .acc.zebra td:nth-child(2), .acc.req td:first-child { padding: 0; }
+  .acc.md td, .acc.req td, .acc.md td:nth-child(2), .acc.zebra td:nth-child(2), .acc.req td:first-child,
+  #accBody td.who { padding: 0; }
   .acc.md .tag, .acc.md .efs .tag { white-space: nowrap; overflow-wrap: normal; }
   .acc.req td:nth-child(-n+5) { white-space: normal; }
   .acc th { position: static; }
-  .acc tr { border-radius: 14px; padding: 11px 12px; gap: 6px 8px; box-shadow: var(--shadow); }
-  td.num { font-size: 11.5px; }
+  .acc tr { border-radius: 10px; padding: 12px; gap: 6px 8px; box-shadow: var(--shadow); }
+  td.num { font-size: 12px; }
+  .acc .tag { font-size: 11.5px; padding-left: 0; padding-right: 0; }
+  .acc .tag.mute, .acc .efs .tag, .acc.md .who .id .tag { padding: 0 6px; }
   .acc .rate-limits { min-width: 0; max-width: none; width: 100%; }
   .acc .rate-limit { flex-wrap: wrap; }
   .acc .rate-limit b { white-space: nowrap; }
-  #accBody tr > td:nth-child(3):has(.rate-limits) { grid-column: 1 / -1; align-items: stretch; }
+  #accBody tr > td:nth-child(3):has(.rate-limits) { grid-column: 1 / -1; align-items: flex-start; }
   #accBody tr > td:nth-child(3):has(.rate-limits) .hint { text-align: left; }
   .acc .usage-cell { width: auto; }
-  .acc .usage-cell .usage-line { display: flex; flex-wrap: wrap; }
-  .acc .acts .acts-in { display: flex; gap: 5px; width: 100%; }
-  .acc .acts .acts-in button { flex: 1 1 0; min-width: 0; padding: 6px 2px; }
+  .acc .usage-cell .usage-line { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+  .acc .usage-item { padding: 0; }
+  .acc .usage-item b { font-size: 11.5px; }
+  .acc .usage-item em { font-size: 10px; }
+  .acc .bar { height: 3px; }
+  /* 操作：直出按钮平分一行，「更多」固定在行尾 */
+  .acc .acts { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; padding-top: 8px !important; border-top: 1px solid var(--line-soft); }
+  .acc .acts .acts-in { display: flex; flex: 1 1 auto; gap: 6px; min-width: 0; }
+  .acc .acts .acts-in > button { flex: 1 1 0; min-width: 0; height: 30px; padding: 0 4px; font-size: 12.5px; }
+  .acc .acts .menu-pop button { flex: none; height: 32px; padding: 0 10px; font-size: 13px; border-radius: 5px; }
+  .acc .acts details.menu > summary { height: 30px; width: 36px; border: 1px solid var(--line); background: var(--surface); }
   .sk-row td { padding: 4px 0 !important; }
   .acc td::before { font-family: var(--sans); }
   .acc.zebra td .note { margin-left: 6px; }
 
   /* 补偿行：标签不拆字，整行可换行 */
-  .comp-row { flex-wrap: wrap; row-gap: 6px; }
+  .comp-row { flex-wrap: wrap; row-gap: 6px; gap: 6px 12px; }
   .comp-row > span:first-child { min-width: 0; flex: 1 1 100%; }
   .comp-row .tag { white-space: nowrap; }
 
-  .kpis { padding: 12px 12px 2px; }
-  .kpis.k4 { padding-bottom: 12px; }
-  .kpi .v { font-size: 19px; }
+  .kpis { padding: 0; gap: 0; }
+  .box:has(> .tbl-wrap) > .kpis { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }
+  .kpi { padding: 10px 12px; border-radius: 0; }
+  .kpi .v { font-size: 18px; }
   .vtabs { margin-left: 0; }
+  .fbar { padding: 8px 12px; }
+  .fbar > input, .fbar > select { height: 30px; }
   .fbar > input[type=search] { padding-left: 30px; }
-  .qrow { box-shadow: var(--shadow); }
+  .trange select, .trange input { height: 28px; }
+  .qrow { box-shadow: var(--shadow); border-radius: 10px; }
   .savebar { bottom: 10px; }
   .grid2 > .switch { margin-top: 0; }
   .grid3:has(> :nth-child(4)) { grid-template-columns: minmax(0, 1fr); }
+  input, select { height: 34px; }
+  .inline button { height: 34px; }
   .exp-row:first-child { padding-top: 0; }
+  .exp-nm { width: auto; white-space: normal; }
+  .exp-dot { top: 0; }
   #toasts { right: 12px; }
-  .tst { padding-left: 40px; }
+  .uschart-hd { padding: 0 0 6px; }
+  .uschart-body { padding: 0; }
+  .uschart-body .usbar-p { fill: var(--c1); }
+  .uschart-body .usbar-c { fill: var(--c2); }
+  .tc-empty { padding: 40px 16px; }
 }

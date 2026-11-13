@@ -379,6 +379,76 @@ setTimeout(() => {
   go(hash in TITLES ? hash : 'accounts');
 }, 0);
 
+/* accActsHtml 账号行操作：最多两个直出按钮（情境主操作 + 最常用的签到/余额），
+   其余收进「更多」菜单。按钮的 data-a / data-u 不变，#accBody 的事件委托照常命中。
+   企业版无个人成长体系（签到 400「企业账号不支持该操作」/ 成长任务 403）：
+   不渲染「签到」「任务」按钮，只留「额度」——点它走 /balance，企业额度由
+   upstream 的 get-enterprise-user-usage 口径填充。 */
+function accActsHtml(s, frozen) {
+  const u = esc(s.uid);
+  const checkin = s.enterprise ? '' :
+    '<button class="xs ghost" data-a="checkin" data-u="' + u + '"' + (s.checkin_done ? ' title="今日已签到；点击可重新签到并刷新余额"' : '') + '>' + (s.checkin_done ? '已签' : '签到') + '</button>';
+  const balance = '<button class="xs ghost" data-a="balance" data-u="' + u + '"' + (s.enterprise ? ' title="刷新企业版已分配额度（上游 get-enterprise-user-usage）"' : '') + '>' + (s.enterprise ? '额度' : '余额') + '</button>';
+  const tasks = s.enterprise ? '' : '<button class="xs ghost" data-a="tasks" data-u="' + u + '">任务</button>';
+  const primary = frozen ? '<button class="xs primary" data-a="revive" data-u="' + u + '">解冻</button>'
+    : (s.paused ? '<button class="xs primary" data-a="resume" data-u="' + u + '">恢复选号</button>' : '');
+  const pause = (frozen || s.paused) ? '' :
+    '<button class="xs ghost" data-a="pause" data-u="' + u + '" title="' + (s.enterprise ? '退出选号，但照常保活 / 刷新额度' : '退出选号，但照常签到 / 活跃上报 / 保活 / 刷新余额') + '">暂停选号</button>';
+  const disable = s.disabled ? '' : '<button class="xs ghost" data-a="disable" data-u="' + u + '">禁用</button>';
+  const remove = '<button class="xs ghost danger" data-a="remove" data-u="' + u + '">移除</button>';
+  // 直出：有主操作 → 主操作 + 签到（企业版：额度）；否则 签到 + 余额（企业版：额度 + 暂停）。
+  let shown, rest;
+  if (primary) {
+    shown = primary + (checkin || balance);
+    rest = (checkin ? balance : '') + tasks + pause;
+  } else if (checkin) {
+    shown = checkin + balance;
+    rest = tasks + pause;
+  } else {
+    shown = balance;
+    rest = pause;
+  }
+  rest += disable + (rest || disable ? '<div class="msep"></div>' : '') + remove;
+  return '<div class="acts-in">' + shown + '</div>' +
+    '<details class="menu"><summary aria-label="更多操作" title="更多操作">' +
+    '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3.5" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="12.5" cy="8" r="1.2"/></svg>' +
+    '</summary><div class="menu-pop">' + rest + '</div></details>';
+}
+
+/* ── 溢出菜单（details.menu）：弹层用 fixed 定位，避免被 .box / .tbl-wrap 的 overflow 裁掉；
+   打开时按触发器位置摆放（右对齐，下方放不下就翻到上方），点外面 / 选中一项 / 滚动 / Esc 关闭。 */
+function closeMenus(except) {
+  document.querySelectorAll('details.menu[open]').forEach(d => { if (d !== except) d.open = false; });
+}
+function placeMenu(d) {
+  const sum = d.querySelector('summary'), pop = d.querySelector('.menu-pop');
+  if (!sum || !pop) return;
+  const r = sum.getBoundingClientRect();
+  pop.style.left = '0px'; pop.style.top = '0px';
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let left = Math.min(vw - pw - 8, Math.max(8, r.right - pw));
+  let top = r.bottom + 4;
+  if (top + ph > vh - 8 && r.top - ph - 4 > 8) top = r.top - ph - 4;
+  pop.style.left = Math.round(left) + 'px';
+  pop.style.top = Math.round(top) + 'px';
+}
+document.addEventListener('toggle', ev => {
+  const d = ev.target;
+  if (!d || d.tagName !== 'DETAILS' || !d.classList.contains('menu') || !d.open) return;
+  closeMenus(d);
+  placeMenu(d);
+}, true);
+document.addEventListener('click', ev => {
+  const t = ev.target;
+  document.querySelectorAll('details.menu[open]').forEach(d => {
+    if (!d.contains(t) || (t.closest && t.closest('.menu-pop button'))) d.open = false;
+  });
+});
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeMenus(); });
+window.addEventListener('scroll', () => closeMenus(), true);
+window.addEventListener('resize', () => closeMenus());
+
 /* ── 账号池 ───────────────────────────────────────────────────────── */
 function renderAccounts(list) {
   const tb = $('accBody');
@@ -427,6 +497,8 @@ function renderAccounts(list) {
         '  ' + c.model + '：' + (c.cost_per_1k <= 0 ? '免费' : c.cost_per_1k)).join('\n');
     }
     const frozen = s.disabled || cool > 0;
+    // 失败数只在占比明显（>10%）时标红：零星失败是常态，满屏红字等于没有重点。
+    const errHigh = (s.err_total || 0) > 0 && (s.err_total || 0) / ((s.success_count || 0) + (s.err_total || 0)) > 0.1;
     const tu = s.token_usage || {};
     const req = tu.request_count || 0;
     const totalTok = formatTokenCount(tu.total_tokens);
@@ -439,7 +511,7 @@ function renderAccounts(list) {
       '<td class="who"><div class="nm">' + remarkName(s.uid, s.nickname ? esc(s.nickname) : '<span style="color:var(--ink-3)">未命名</span>') + (s.realm === 'global' ? ' <span class="realm-tag">国际版</span>' : '') + (s.enterprise ? ' <span class="realm-tag">企业版</span>' : '') + '</div><div class="id">' + esc(short) + '</div></td>' +
       '<td>' + tag + note + rateLimits + '</td>' +
       '<td class="cred" title="' + esc(credTip) + '"><div class="n">' + cred + '</div><div class="bar"><i style="width:' + pct + '%"></i></div></td>' +
-      '<td class="num">' + (s.success_count || 0) + ' <span style="color:var(--ink-3)">/</span> <span style="color:var(--bad)">' + (s.err_total || 0) + '</span></td>' +
+      '<td class="num">' + (s.success_count || 0) + '<span class="slash">/</span><span class="err-n' + (errHigh ? ' has' : '') + '">' + (s.err_total || 0) + '</span></td>' +
       '<td class="num">' + (s.in_flight || 0) + '</td>' +
       '<td class="num usage-cell" title="' + esc(usageTitle) + '"><span class="usage-line" aria-label="' + esc(usageTitle) + '">' +
         '<span class="usage-item usage-count"><b>' + req + '</b><em>次</em></span>' +
@@ -448,21 +520,7 @@ function renderAccounts(list) {
         '<span class="usage-item usage-rate"><b>' + rate + '</b></span>' +
       '</span></td>' +
       '<td class="num" style="color:var(--ink-3)">' + ago(s.last_success) + '</td>' +
-      '<td class="acts"><div class="acts-in">' +
-        // 企业版无个人成长体系（签到 400「企业账号不支持该操作」/ 成长任务 403）：
-        // 不渲染「签到」「任务」按钮，只留「额度」——点它走 /balance，企业额度由
-        // upstream 的 get-enterprise-user-usage 口径填充。
-        (s.enterprise ? '' :
-          '<button class="xs ghost" data-a="checkin" data-u="' + esc(s.uid) + '"' + (s.checkin_done ? ' title="今日已签到；点击可重新签到并刷新余额"' : '') + '>' + (s.checkin_done ? '已签' : '签到') + '</button>') +
-        '<button class="xs ghost" data-a="balance" data-u="' + esc(s.uid) + '"' + (s.enterprise ? ' title="刷新企业版已分配额度（上游 get-enterprise-user-usage）"' : '') + '>' + (s.enterprise ? '额度' : '余额') + '</button>' +
-        (s.enterprise ? '' :
-          '<button class="xs ghost" data-a="tasks" data-u="' + esc(s.uid) + '">任务</button>') +
-        (frozen ? '<button class="xs primary" data-a="revive" data-u="' + esc(s.uid) + '">解冻</button>'
-                : (s.paused ? '<button class="xs primary" data-a="resume" data-u="' + esc(s.uid) + '">恢复选号</button>'
-                            : '<button class="xs ghost" data-a="pause" data-u="' + esc(s.uid) + '" title="' + (s.enterprise ? '退出选号，但照常保活 / 刷新额度' : '退出选号，但照常签到 / 活跃上报 / 保活 / 刷新余额') + '">暂停选号</button>')) +
-        (s.disabled ? '' : '<button class="xs ghost" data-a="disable" data-u="' + esc(s.uid) + '">禁用</button>') +
-        '<button class="xs ghost danger" data-a="remove" data-u="' + esc(s.uid) + '">移除</button>' +
-      '</div></td></tr>';
+      '<td class="acts">' + accActsHtml(s, frozen) + '</td></tr>';
   }).join('');
 }
 
@@ -2368,8 +2426,8 @@ function renderUsage(d) {
       errs ? '其中失败 ' + errs + ' 次' : '全部成功') +
     usKpi(fmtTok(total), '总 token', 'c-accent',
       'prompt ' + usPct(pt, total) + ' · completion ' + usPct(ct, total),
-      '<div class="kbar"><i style="width:' + pctW(pt) + ';background:var(--accent)"></i>' +
-      '<i style="width:' + pctW(ct) + ';background:var(--ok)"></i></div>') +
+      '<div class="kbar"><i style="width:' + pctW(pt) + ';background:var(--c1)"></i>' +
+      '<i style="width:' + pctW(ct) + ';background:var(--c2)"></i></div>') +
     usKpi(fmtTok(pt), 'prompt', 'c-soft', '占比 ' + usPct(pt, total)) +
     usKpi(fmtTok(ct), 'completion', 'c-ok', '占比 ' + usPct(ct, total)) +
     usKpi(String(errs), '失败尝试', errs ? 'c-warn' : 'c-mute',
@@ -2516,11 +2574,11 @@ function renderUsageChart(series) {
   // 属性里的 var()，写成 stop-color="var(--accent)" 会整条渐变失效（柱子全透明）。
   out += '<defs>' +
     '<linearGradient id="usGradP" x1="0" y1="0" x2="0" y2="1">' +
-    '<stop offset="0" style="stop-color:var(--accent);stop-opacity:1"/>' +
-    '<stop offset="1" style="stop-color:var(--accent);stop-opacity:.6"/></linearGradient>' +
+    '<stop offset="0" style="stop-color:var(--c1);stop-opacity:1"/>' +
+    '<stop offset="1" style="stop-color:var(--c1);stop-opacity:1"/></linearGradient>' +
     '<linearGradient id="usGradC" x1="0" y1="0" x2="0" y2="1">' +
-    '<stop offset="0" style="stop-color:var(--ok);stop-opacity:1"/>' +
-    '<stop offset="1" style="stop-color:var(--ok);stop-opacity:.6"/></linearGradient>' +
+    '<stop offset="0" style="stop-color:var(--c2);stop-opacity:1"/>' +
+    '<stop offset="1" style="stop-color:var(--c2);stop-opacity:1"/></linearGradient>' +
     '</defs>';
 
   // y 轴网格 + 刻度
@@ -2669,11 +2727,11 @@ if ($('usRange')) trangeBind('usRange', loadUsage);
    完全一致的账号，余额可能差上千——差别只在包里。这里把逐包明细摊开，并给每个
    包名一个稳定配色，跨账号对比时同色即同类。 */
 
-const PK_COLORS = ['#4f8cff', '#25b08b', '#e8a33d', '#c96bd6', '#e2607a',
-                   '#5aa9e6', '#8fbf3f', '#b58b5a', '#7d8fa8', '#d4785c'];
-const PK_ACCOUNT_COLORS = ['#4f8cff', '#25b08b', '#e8a33d', '#c96bd6',
-                           '#e2607a', '#20a4a4', '#8fbf3f', '#d4785c',
-                           '#7c83db', '#c48a2f', '#b45f8c', '#5aa9e6'];
+const PK_COLORS = ['#3f8f7d', '#c49a52', '#7d8b9c', '#b8705f', '#8a9a5b',
+                   '#6aa7a0', '#a08465', '#9c7f99', '#5f7f8f', '#c4a77d'];
+const PK_ACCOUNT_COLORS = ['#3f8f7d', '#c49a52', '#7d8b9c', '#b8705f',
+                           '#8a9a5b', '#6aa7a0', '#a08465', '#9c7f99',
+                           '#5f7f8f', '#c4a77d', '#b08a8a', '#7f9a85'];
 
 function pkColor(i) { return PK_COLORS[i % PK_COLORS.length]; }
 

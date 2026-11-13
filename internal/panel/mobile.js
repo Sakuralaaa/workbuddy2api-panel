@@ -96,7 +96,7 @@ function labelTables() {
 const ACT_SHORT = { '暂停选号': '暂停', '恢复选号': '恢复' };
 function shortenActLabels() {
   if (!MOBILE_MQ.matches) return;
-  for (const b of document.querySelectorAll('.acc .acts button')) {
+  for (const b of document.querySelectorAll('.acc .acts .acts-in > button')) {
     const t = (b.textContent || '').trim();
     if (t.length <= 3) continue;
     if (!b.title) b.title = t;
