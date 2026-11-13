@@ -145,3 +145,40 @@ func TestTurnRequestIDDerivation(t *testing.T) {
 		}
 	}
 }
+
+// TestTurnKeySkipsAnsweringUserMessages 插件 turnParts/answeredBefore：回答上一条的 user 消息
+// （role tool 之后、assistant 调用之后、自带 tool_result 块）不是用户本人的话，同一次发送的
+// 每一步轮级键不变；中间的 system 消息不改变「上一条」。
+func TestTurnKeySkipsAnsweringUserMessages(t *testing.T) {
+	base := `{"role":"user","content":"do it"},{"role":"assistant","content":"","tool_calls":[{"id":"c1","type":"function","function":{"name":"x","arguments":"{}"}}]},{"role":"tool","tool_call_id":"c1","content":"r"}`
+	k0 := TurnKey([]byte(`{"messages":[{"role":"user","content":"do it"}]}`))
+	cases := map[string]string{
+		"after tool":                 `{"messages":[` + base + `,{"role":"user","content":[{"type":"text","text":"Attached image(s) from tool result:"},{"type":"image_url","image_url":{"url":"data:x"}}]}]}`,
+		"after tool, system between": `{"messages":[` + base + `,{"role":"system","content":"note"},{"role":"user","content":"img"}]}`,
+		"tool_result block":          `{"messages":[{"role":"user","content":"do it"},{"role":"assistant","content":[{"type":"tool_use","id":"t"}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":"r"},{"type":"text","text":"reminder"}]}]}`,
+	}
+	for name, body := range cases {
+		if got := TurnKey([]byte(body)); got != k0 {
+			t.Errorf("%s: TurnKey = %q, want the send's own %q", name, got, k0)
+		}
+	}
+	// 空 tool_calls 不算调用：之后的 user 消息是用户新的一句。
+	fresh := TurnKey([]byte(`{"messages":[{"role":"user","content":"do it"},{"role":"assistant","content":"ok","tool_calls":[]},{"role":"user","content":"next"}]}`))
+	if fresh == k0 || fresh == "" {
+		t.Errorf("empty tool_calls treated as a call: %q", fresh)
+	}
+}
+
+// TestOwnIDPerAccount 插件 own()：同账号稳定、跨账号不同、无账号原样。
+func TestOwnIDPerAccount(t *testing.T) {
+	a1, a1b, a2 := OwnID("turn", "u1||", "base"), OwnID("turn", "u1||", "base"), OwnID("turn", "u2||", "base")
+	if a1 != a1b || a1 == a2 || len(a1) != 32 || a1 == "base" {
+		t.Errorf("OwnID = %q %q %q", a1, a1b, a2)
+	}
+	if OwnID("conversation", "u1||", "base") == a1 {
+		t.Error("kind not part of the id")
+	}
+	if OwnID("turn", "", "base") != "base" {
+		t.Error("empty scope should keep base")
+	}
+}

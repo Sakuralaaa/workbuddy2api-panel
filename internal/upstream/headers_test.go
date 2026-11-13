@@ -43,14 +43,23 @@ func TestChatHeadersAlwaysSendConversationTrio(t *testing.T) {
 	}
 }
 
-// TestChatHeadersPreservesConversationID 入站带来的会话 ID 优先透传，不被兜底覆盖。
+// TestChatHeadersPreservesConversationID 调用方在请求头里给的会话 ID 原样透传，不被兜底覆盖；
+// 不是调用方头的会话 ID（body / 会话键）按账号派生，稳定且不是原值。
 func TestChatHeadersPreservesConversationID(t *testing.T) {
 	c := &Client{}
-	req, _ := http.NewRequest(http.MethodPost, "https://example.com/v2/chat/completions", nil)
 	const conv = "0123456789abcdef0123456789abcdef"
-	c.ChatHeaders(req, testAuth(), "", ChatMeta{ConversationID: conv})
+	req, _ := http.NewRequest(http.MethodPost, "https://example.com/v2/chat/completions", nil)
+	c.ChatHeaders(req, testAuth(), "", ChatMeta{ConversationID: conv, CallerConversationID: true})
 	if got := req.Header.Get("X-Conversation-ID"); got != conv {
 		t.Errorf("X-Conversation-ID = %q, want supplied %q", got, conv)
+	}
+	req2, _ := http.NewRequest(http.MethodPost, "https://example.com/v2/chat/completions", nil)
+	c.ChatHeaders(req2, testAuth(), "", ChatMeta{ConversationID: conv})
+	req3, _ := http.NewRequest(http.MethodPost, "https://example.com/v2/chat/completions", nil)
+	c.ChatHeaders(req3, testAuth(), "", ChatMeta{ConversationID: conv})
+	got := req2.Header.Get("X-Conversation-ID")
+	if got == conv || got != req3.Header.Get("X-Conversation-ID") {
+		t.Errorf("derived X-Conversation-ID = %q / %q, want a stable per-account id", got, req3.Header.Get("X-Conversation-ID"))
 	}
 }
 

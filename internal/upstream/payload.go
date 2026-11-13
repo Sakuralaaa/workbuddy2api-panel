@@ -50,6 +50,8 @@ func PrepareBodyOptWithEffortsAndDefault(src []byte, sanitize bool, efforts map[
 	}
 	normalizeToolChoice(obj)
 	normalizeToolPatterns(obj)
+	// 工具参数 schema 改成各模型都收的形状（插件 fitTools，见 tool_schema.go）。
+	fitTools(obj)
 	normalizeRoles(obj)
 	normalizeImageURL(obj)
 	dropReasoningContentParts(obj)
@@ -74,12 +76,26 @@ func PrepareBodyOptWithEffortsAndDefault(src []byte, sanitize bool, efforts map[
 	// DeepSeek 思维链开关（见 thinking.go）：注入 thinking.type=enabled + 缺档补默认档。
 	// 先于 normalizeReasoningEffort 执行：补入的默认档也要走既有降级管线，
 	// 模型不支持默认档时自动落到 ≤ 默认档的最高支持档（不出站不合规档位）。
+	//
+	// 小预算（max_tokens ≤ 1024）且客户端没点名档位：不补任何默认档、不注入 thinking
+	// （插件 withDefaultEffort / SMALL_BUDGET：标题、分类这类短请求的预算一补默认档
+	// 就全花在思考上，answer 为空、finish=length）。
 	modelName, _ := obj["model"].(string)
-	injectThinking(obj, lookupDefaultEffort(defaultEfforts, modelName))
+	small := !namesEffort(obj) && smallBudget(obj)
+	if !small {
+		injectThinking(obj, lookupDefaultEffort(defaultEfforts, modelName))
+		// 非 deepseek 模型：客户端没点名档位时按模型配置的默认档补 reasoning_effort
+		// （插件 withDefaultEffort：官方 CLI configureThinkingSettings 取
+		// reasoning.defaultEffort ?? reasoning.effort；不带 effort 的请求上游不思考）。
+		applyDefaultEffort(obj, efforts, defaultEfforts)
+	}
 	normalizeReasoningEffort(obj, efforts)
-	// DeepSeek 多轮一致性：assistant 消息带 reasoning 痕迹时回填 reasoning_content
-	// （requiresReasoningContentOnAssistantMessages，见 thinking.go）。
+	// DeepSeek 多轮一致性：assistant 消息带 reasoning 痕迹时回填 reasoning（#165，
+	// 见 thinking.go）。
 	backfillReasoningContent(obj)
+	// 前几轮的思考统一以 `reasoning` 回传（插件 asReasoning）：WorkBuddy 丢弃
+	// reasoning_content / reasoning_details，官方客户端在 assistant 消息上设的是 reasoning。
+	asReasoning(obj)
 	if sanitize {
 		if msgs, ok := obj["messages"].([]any); ok {
 			sanitizeMessages(msgs)
@@ -345,7 +361,7 @@ func dropReasoningContentParts(obj map[string]any) {
 
 // ensureConsoleSystem global realm 兜底 system 注入（吸收 PR #45，防 console 域上游 code 11-128）：
 // 首条消息非 system 时在 messages 最前补一条 fallback system（"You are a helpful assistant."）。
-// 仅对 global 请求调用（CN 现状不动；即使首条就是 system 也不重复注入）。
+// 两个版本都调用（对齐插件 withSystem；首条已是 system 不重复注入）。
 // body 不可解析时原样返回（与 prepareBody 语义一致：坏 body 不在这里二次错误化）。
 func ensureConsoleSystem(body []byte) []byte {
 	if len(body) == 0 {
@@ -487,5 +503,104 @@ func unescapePatternLiteralEscapes(node any) {
 		for _, v := range n {
 			unescapePatternLiteralEscapes(v)
 		}
+	}
+}
+
+// smallBudgetLimit 插件 SMALL_BUDGET：Anthropic 只在预算 ≥1024 且 max_tokens 更大时才接受
+// thinking，≤1024 的请求不可能是想要思考的。
+const smallBudgetLimit = 1024
+
+// smallBudget 请求的输出预算（max_tokens，别名已翻译）是否在 (0, 1024] 内。
+func smallBudget(obj map[string]any) bool {
+	v, ok := numberOf(obj["max_tokens"])
+	if !ok {
+		v, ok = numberOf(obj["max_completion_tokens"])
+	}
+	return ok && v > 0 && v <= smallBudgetLimit
+}
+
+func numberOf(v any) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case int64:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	}
+	return 0, false
+}
+
+// namesEffort 插件同名函数：客户端自己点名了档位（reasoning_effort / reasoningEffort /
+// reasoning.effort 任一）。点名的档位（含 "none"）原样发出，不补默认档。
+func namesEffort(obj map[string]any) bool {
+	if _, ok := obj["reasoning_effort"]; ok {
+		return true
+	}
+	if _, ok := obj["reasoningEffort"]; ok {
+		return true
+	}
+	if r, ok := obj["reasoning"].(map[string]any); ok {
+		if _, ok := r["effort"]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// applyDefaultEffort 非 deepseek 模型（deepseek 由 injectThinking 处理）在没点名档位时
+// 补模型的默认档。只在默认档属于该模型已知档位表时补（插件 defaultEffortOf：默认档
+// 不在档位表里则不补）；档位表未知的模型不补——无法确认它支持思考。
+func applyDefaultEffort(obj map[string]any, efforts map[string][]string, defaults map[string]string) {
+	model, _ := obj["model"].(string)
+	if model == "" || isDeepSeekModel(model) || namesEffort(obj) {
+		return
+	}
+	def := lookupDefaultEffort(defaults, model)
+	if def == "" || !containsEffort(efforts[model], def) {
+		return
+	}
+	obj["reasoning_effort"] = def
+}
+
+// asReasoning 插件同名函数：assistant 消息的 reasoning_content（或 OpenRouter 形态
+// reasoning_details 的 text/summary 拼接）改以 reasoning 回传，删掉这两个字段。已有非空
+// string reasoning 的不覆盖。实测（2026-10-27，www.workbuddy.ai）reasoning_content 里的
+// 暗号模型一个都读不到，同样的话放 reasoning 里 kimi-k2.6 / minimax-m3 读得到。
+func asReasoning(obj map[string]any) {
+	msgs, ok := obj["messages"].([]any)
+	if !ok {
+		return
+	}
+	for _, mm := range msgs {
+		m, ok := mm.(map[string]any)
+		if !ok || m["role"] != "assistant" {
+			continue
+		}
+		_, hasRC := m["reasoning_content"]
+		_, hasRD := m["reasoning_details"]
+		if !hasRC && !hasRD {
+			continue
+		}
+		text, _ := m["reasoning_content"].(string)
+		if text == "" {
+			if list, ok := m["reasoning_details"].([]any); ok {
+				var b strings.Builder
+				for _, d := range list {
+					dm, _ := d.(map[string]any)
+					if t, ok := dm["text"].(string); ok {
+						b.WriteString(t)
+					} else if t, ok := dm["summary"].(string); ok {
+						b.WriteString(t)
+					}
+				}
+				text = b.String()
+			}
+		}
+		if r, ok := m["reasoning"].(string); text != "" && !(ok && r != "") {
+			m["reasoning"] = text
+		}
+		delete(m, "reasoning_content")
+		delete(m, "reasoning_details")
 	}
 }

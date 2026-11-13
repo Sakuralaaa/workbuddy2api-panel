@@ -201,6 +201,9 @@ type fakeUpstream struct {
 func (f *fakeUpstream) server() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
+		case strings.HasSuffix(r.URL.Path, "/checkin-activity-status"):
+			// 国内版签到先问活动状态（插件 checkinOf）：进行中、今天未签。
+			w.Write([]byte(`{"code":0,"data":{"active":true,"todayCheckedIn":false}}`))
 		case strings.HasSuffix(r.URL.Path, "/daily-checkin"):
 			f.checkinCalls.Add(1)
 			w.Write([]byte(`{"code":0,"msg":"ok","data":{}}`))

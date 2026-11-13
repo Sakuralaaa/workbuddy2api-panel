@@ -5,7 +5,10 @@ import (
 	"testing"
 )
 
-// assistantRC 提取输出 messages 里各 assistant 消息的 reasoning_content（缺字段返回 ""+false）。
+// assistantRC 提取输出 messages 里各 assistant 消息回传给上游的思考文本。
+// 对齐插件 asReasoning：出站只发 `reasoning`（WorkBuddy 丢弃 reasoning_content），故这里
+// 读 reasoning；backfill 的单空格占位（#165 len>0 校验）按 "" 计；缺字段为 "<absent>"。
+// 同时断言出站 assistant 消息里不再出现 reasoning_content。
 // 返回的切片与 messages 中 assistant 消息一一对应（非 assistant 消息跳过）。
 func assistantRC(t *testing.T, out []byte) []string {
 	t.Helper()
@@ -24,7 +27,13 @@ func assistantRC(t *testing.T, out []byte) []string {
 		if role != "assistant" {
 			continue
 		}
-		if v, ok := msg["reasoning_content"].(string); ok {
+		if _, ok := msg["reasoning_content"]; ok {
+			t.Errorf("reasoning_content 不应出站（插件 asReasoning）: %v", msg)
+		}
+		if v, ok := msg["reasoning"].(string); ok {
+			if v == " " {
+				v = ""
+			}
 			got = append(got, v)
 		} else {
 			got = append(got, "<absent>")
@@ -137,21 +146,21 @@ func TestBackfillReasoningContentNonDeepSeek(t *testing.T) {
 		{"role":"assistant","content":"a","reasoning":"thought"}]}`
 	out := PrepareBodyOptWithEfforts([]byte(body), false, nil)
 	for _, rc := range assistantRC(t, out) {
-		if rc != "<absent>" {
-			t.Errorf("非 deepseek 不应 backfill, got reasoning_content=%q (out=%s)", rc, out)
+		if rc != "thought" {
+			t.Errorf("非 deepseek 的 reasoning 应原样保留, got %q (out=%s)", rc, out)
 		}
 	}
 }
 
 // TestBackfillReasoningContentBothFields 同时带 reasoning 与 reasoning_content：
-// 以 reasoning_content 为准（不覆盖），reasoning 字段保留（兼容）——对齐客户端 matches 规则。
+// 插件 asReasoning 以已有的非空 reasoning 为准，reasoning_content 删掉不出站。
 func TestBackfillReasoningContentBothFields(t *testing.T) {
 	body := `{"model":"deepseek-v4-flash","messages":[
 		{"role":"assistant","content":"a","reasoning":"t","reasoning_content":"existing"}]}`
 	out := PrepareBodyOptWithEfforts([]byte(body), false, nil)
 	got := assistantRC(t, out)
-	if len(got) != 1 || got[0] != "existing" {
-		t.Errorf("reasoning_content 应以已有值为准: got %v (out=%s)", got, out)
+	if len(got) != 1 || got[0] != "t" {
+		t.Errorf("reasoning 应以已有值为准: got %v (out=%s)", got, out)
 	}
 	// 同时确认 reasoning 字段仍原样保留。
 	var m map[string]any

@@ -1482,7 +1482,7 @@ func TestContentBlockedTriggersDegradedRetry(t *testing.T) {
 	var bodies [][]byte
 	up := &upstream.Client{
 		HTTP: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-			raw, _ := io.ReadAll(r.Body)
+			raw, _ := readTestBody(r)
 			bodies = append(bodies, raw)
 			// 首次（body 含原始 system）返回 400 内容拦截；后续返回 200。
 			if len(bodies) == 1 {
@@ -1623,7 +1623,7 @@ func TestCustomModeFingerprintSanitizePreserved(t *testing.T) {
 	var sentBody []byte
 	up := &upstream.Client{
 		HTTP: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-			raw, _ := io.ReadAll(r.Body)
+			raw, _ := readTestBody(r)
 			sentBody = raw
 			return &http.Response{
 				StatusCode: 200,

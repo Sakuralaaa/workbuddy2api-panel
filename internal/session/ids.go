@@ -100,16 +100,21 @@ func TurnKey(body []byte) string {
 		return ""
 	}
 	var obj struct {
-		Messages []struct {
-			Role    string          `json:"role"`
-			Content json.RawMessage `json:"content"`
-		} `json:"messages"`
+		Messages []turnMessage `json:"messages"`
 	}
 	if err := json.Unmarshal(body, &obj); err != nil {
 		return ""
 	}
 	for i := len(obj.Messages) - 1; i >= 0; i-- {
 		if obj.Messages[i].Role != "user" {
+			continue
+		}
+		// 回答上一条的 user 消息（tool 结果之后的那条 / 自身带 tool_result 块）不是
+		// 用户本人说的话：对齐 magpie WorkBuddy 插件 turnParts 的 answeredBefore——
+		// 客户端把工具结果里的图片放进紧随其后的 user 消息（pi 的 "Attached image(s)
+		// from tool result:"）、Anthropic 形态把 tool_result 放进 user 消息，以它们
+		// 为键会让同一次发送的每一步都换一个轮级 ID。
+		if answeredBefore(obj.Messages, i) {
 			continue
 		}
 		sig := contentSignature(obj.Messages[i].Content)
@@ -121,6 +126,62 @@ func TurnKey(body []byte) string {
 		return fmt.Sprintf("u%d:%s", i, sig)
 	}
 	return ""
+}
+
+// turnMessage TurnKey 读取的消息形状（answeredBefore 需要 tool_calls 与 content 块类型）。
+type turnMessage struct {
+	Role      string          `json:"role"`
+	Content   json.RawMessage `json:"content"`
+	ToolCalls json.RawMessage `json:"tool_calls"`
+}
+
+// hasBlock content 数组里是否有 type==typ 的块。
+func hasBlock(m turnMessage, typ string) bool {
+	s := strings.TrimSpace(string(m.Content))
+	if s == "" || s[0] != '[' {
+		return false
+	}
+	var parts []struct {
+		Type string `json:"type"`
+	}
+	if json.Unmarshal(m.Content, &parts) != nil {
+		return false
+	}
+	for _, p := range parts {
+		if p.Type == typ {
+			return true
+		}
+	}
+	return false
+}
+
+// answeredBefore 对齐插件同名函数：msgs[i] 是在回答上一条（tool 结果 / assistant 的
+// 调用），而不是用户本人的话。中间的 system 消息不改变「上一条」是谁。
+func answeredBefore(msgs []turnMessage, i int) bool {
+	if hasBlock(msgs[i], "tool_result") {
+		return true
+	}
+	j := i - 1
+	for j >= 0 && msgs[j].Role == "system" {
+		j--
+	}
+	if j < 0 {
+		return false
+	}
+	prev := msgs[j]
+	switch prev.Role {
+	case "tool":
+		return true
+	case "user":
+		return hasBlock(prev, "tool_result")
+	case "assistant":
+		var calls []json.RawMessage
+		if json.Unmarshal(prev.ToolCalls, &calls) == nil && len(calls) > 0 {
+			return true
+		}
+		return hasBlock(prev, "tool_use")
+	}
+	return false
 }
 
 // contentText 取消息 content 的文本：字符串形态直接返回；数组形态（多模态 parts）
@@ -195,6 +256,10 @@ func contentSignature(raw json.RawMessage) string {
 		if err := json.Unmarshal(pr, &p); err != nil {
 			return ""
 		}
+		if p.Type == "tool_result" || p.Type == "tool-result" {
+			// 工具结果块不是用户说的话，且随每一步变化（对齐插件 signatureParts）。
+			continue
+		}
 		if p.Type == "" || p.Type == "text" {
 			// 文本 part：无缝拼接（与 contentText 完全同口径——全文本 part 的数组
 			// 签名 == contentText 结果，存量键零漂移）。
@@ -225,5 +290,18 @@ func TurnRequestID(turnKey string) string {
 		return NewMessageID()
 	}
 	sum := sha256.Sum256([]byte(deriveSalt + "|" + turnKey))
+	return hex.EncodeToString(sum[:16])
+}
+
+// OwnID 把一个会话级 / 轮级 ID 派生成「某账号自己的」ID：sha256(盐|kind|account:<scope>|<base>)
+// 前 32 hex。对齐 magpie WorkBuddy 插件 setIds 的 own()——官方客户端一次只以一个账号
+// 运行，同一个会话 / 轮次不会出现在两个账号下；网关一次会话分散到多个账号时，若各账号
+// 发同一个 X-Conversation-ID / X-Conversation-Request-ID，就成了「一个对话挂在多个
+// X-User-Id 下」的跨号关联特征。scope 为空时原样返回 base。
+func OwnID(kind, scope, base string) string {
+	if scope == "" || base == "" {
+		return base
+	}
+	sum := sha256.Sum256([]byte(deriveSalt + "|" + kind + "|account:" + scope + "|" + base))
 	return hex.EncodeToString(sum[:16])
 }

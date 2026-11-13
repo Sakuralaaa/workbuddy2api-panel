@@ -141,14 +141,14 @@ func TestNonChatModelGenerationTags(t *testing.T) {
 }
 
 // TestDesktopUAForGlobalAccount 桌面端 UA 按 realm 切平台段：global 账号必须是
-// `workbuddy-ai`（桌面端 5.9.4 实抓 `WorkBuddy/5.9.4 workbuddy-ai/5.9.4 CLI/2.165.0`）。探测主路用这个 UA，
+// `workbuddy-ai`（插件 cliAgent：`WorkBuddy/5.9.3 workbuddy-ai/5.9.3 CLI/2.165.0`）。探测主路用这个 UA，
 // 与 chat 路径同源——global 目录探测因此拿到客户端同款模型集。
 func TestDesktopUAForGlobalAccount(t *testing.T) {
 	c := New()
 	global := &auth.Auth{UID: "u1", Domain: "www.workbuddy.ai"}
 	global.BackfillRealm()
 	ua := c.defaultWorkBuddyUAFor(global)
-	if want := " workbuddy-ai/5.9.4 "; !contains(ua, want) {
+	if want := " workbuddy-ai/5.9.3 "; !contains(ua, want) {
 		t.Errorf("global desktop UA = %q, want it to contain %q", ua, want)
 	}
 	if !contains(ua, "CLI/") {

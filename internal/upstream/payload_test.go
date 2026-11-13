@@ -339,7 +339,8 @@ func TestNormalizeToolPatterns(t *testing.T) {
 		bs := string(byte(92))
 		body := `{"messages":[],"tools":[{"type":"function","function":{"name":"t","parameters":{"anyOf":[{"properties":{"code":{"pattern":"x` + bs + bs + `_y"}}},{"type":"string"}]}}}]}` //nolint:lll
 		out := string(PrepareBodyOptWithEfforts([]byte(body), false, nil))
-		if got := lookupPattern(t, out, "tools", 0, "function", "parameters", "anyOf", 0, "properties", "code", "pattern"); got != "x_y" {
+		// 根 anyOf 经 fitTools/objectRoot 合并成 object（插件同款），pattern 落到 properties.code。
+		if got := lookupPattern(t, out, "tools", 0, "function", "parameters", "properties", "code", "pattern"); got != "x_y" {
 			t.Fatalf("nested pattern = %q, want %q", got, "x_y")
 		}
 	})

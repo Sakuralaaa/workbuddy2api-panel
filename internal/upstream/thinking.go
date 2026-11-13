@@ -67,6 +67,10 @@ func isDeepSeekModel(model string) bool {
 // 值时不算「已有」，落补 ""/复制分支（旧代码键存在即跳过，null 会被当「已有」漏补）。
 // hasTrace = 会话内任一消息带非空 reasoning（string）或已有 reasoning_content 字段
 // （比官方仅扫 assistant 的口径宽，只影响 disabled 分支，装饰性差异）。
+//
+// 出站前 payload.go 的 asReasoning（对齐 magpie 官方插件）会把 reasoning_content 并入
+// reasoning 并删掉该字段——WorkBuddy 只读 reasoning；本函数的 reasoning 镜像 / 单空格占位
+// 因此是真正上线的那一半。
 func backfillReasoningContent(obj map[string]any) {
 	model, _ := obj["model"].(string)
 	if !isDeepSeekModel(model) {

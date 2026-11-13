@@ -3,6 +3,7 @@
 package upstream
 
 import (
+	"compress/gzip"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -1119,7 +1120,13 @@ func (c *Client) refreshTokenOnce(a *auth.Auth) error {
 	endpoint := c.chatBase(a) + "/v2/plugin/auth/token/refresh"
 	ctx, cancel := context.WithTimeout(context.Background(), refreshIOTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, nil)
+	// official 形态的刷新体是 "{}"（插件 renew → call(..., {})：JSON.stringify({})）；
+	// legacy 保持旧的空 body。
+	var refreshBody io.Reader
+	if c.headerProfile() != HeaderProfileLegacy {
+		refreshBody = strings.NewReader("{}")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, refreshBody)
 	if err != nil {
 		return err
 	}
@@ -1219,19 +1226,32 @@ func (c *Client) ChatStreamContext(ctx context.Context, a *auth.Auth, body []byt
 		ctx = context.Background()
 	}
 	prepared := c.prepareBody(body, a.Realm(), a.UID, meta.ConversationID)
-	if c.globalOn(a) {
-		prepared = ensureConsoleSystem(prepared)
-	}
+	// 首条非 system 时补默认 system（"You are a helpful assistant."）：插件 withSystem
+	// 对两个版本都做（官方客户端如此；两站都对首条非 system 回 11128）。此前只 global。
+	prepared = ensureConsoleSystem(prepared)
 	// reqCtx 的 cancel 在每个出口显式调用（Do 失败 / ≥400 / 成功分支移交 monitorBody），
 	// 循环本身各分支必 return——无循环尾兜底代码（此前外层 var cancel 从未赋值 +
 	// 尾部不可达 cancel() 是潜伏 nil-panic，已删；chatPaths 恒非空由构造保证）。
+	// official 形态的 chat 请求体 gzip 压缩 + Content-Encoding: gzip，对齐插件 gzipped()：
+	// 官方 CLI 2.165.0 的 GzipRequestProcessor 在 RequestBodyGzip 特性开启时（两个版本
+	// product.json 都开）压缩每个 POST 体。只压 chat completions——图片等其他接口按
+	// 明文 JSON 读体（压了回 400 11101）。压缩失败回落明文。
+	wire, gz := prepared, false
+	if c.headerProfile() != HeaderProfileLegacy {
+		if z, zerr := gzipBytes(prepared); zerr == nil {
+			wire, gz = z, true
+		}
+	}
 	for _, path := range c.chatPaths(a) {
 		endpoint := c.chatBase(a) + path
-		req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(prepared))
+		req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(wire))
 		if err != nil {
 			return nil, 0, nil, err
 		}
 		c.ChatHeaders(req, a, clientIP, meta)
+		if gz {
+			req.Header.Set("Content-Encoding", "gzip")
+		}
 		// 从调用方 ctx 派生：保留取消传播（父 ctx 取消 → 本 ctx 取消），
 		// 同时 monitorBody.Close 仍能独立 cancel 本分支（空闲掐流）。
 		reqCtx, cancel := context.WithCancel(ctx)
@@ -1274,7 +1294,9 @@ func (c *Client) ChatStreamContext(ctx context.Context, a *auth.Auth, body []byt
 		// 成功分支：cancel 所有权交给 monitorBody（其 Close 会 cancel）；
 		// IdleTimeout<=0 时 monitorBody 原样返回底流、无人调 cancel——可接受：
 		// 取消传播由 http.Transport 在 body Close / 父 ctx 取消时处理，连接正常清理。
-		return monitorBody(resp.Body, c.IdleTimeout, cancel), resp.StatusCode, nil, nil
+		// 去掉安全过滤的固定拒答文本（插件 unsaid，见 refusal.go）：被过滤的回复以空正文
+		// + finish_reason content_filter 交给客户端。
+		return stripFilterRefusal(monitorBody(resp.Body, c.IdleTimeout, cancel)), resp.StatusCode, nil, nil
 	}
 	panic("unreachable: chatPaths is never empty") // for range 空集时编译器仍要求兜底 return；chatPaths 恒非空（构造保证），永不触达
 }
@@ -2475,9 +2497,72 @@ func packageRemainUsed(a respAccount) (remain, used, size int64) {
 // DailyCheckin 执行每日签到。已签到（业务 code 非 0）也返回错误，调用方按 msg 区分。
 // 偶发上游 5xx（code 10000）做有界重试（见 retryBillingTransient）——单次抖动不再
 // 让该账号整天漏签；「已签到」等业务错误不重试。
+//
+// 国内版（official 头族）对齐 magpie 官方 WorkBuddy 插件 checkinOf（0.2.0 起）：走账号
+// 自己的 API 主机（chatBase，默认 copilot.tencent.com——插件 endpointOf）上的 /v2 计费
+// meter，先问活动状态 checkin-activity-status，活动进行中且今天未签才 POST daily-checkin；
+// 活动未开 / 已签都不再发签到请求。header_profile=legacy 与国际版保持旧路径。
 func (c *Client) DailyCheckin(a *auth.Auth) error {
+	if !c.globalOn(a) && c.headerProfile() != HeaderProfileLegacy {
+		return c.meterCheckinCN(a)
+	}
 	return c.retryBillingTransient(func() error {
 		_, err := c.billingMeterJSON(a, c.checkinMeterPaths(a), http.MethodPost, map[string]any{})
+		return err
+	})
+}
+
+// checkinStatusPathV2 国内版签到活动状态（插件 checkinOf 第一步）。
+const checkinStatusPathV2 = "/v2/billing/meter/checkin-activity-status"
+
+// ErrCheckinInactive 签到活动未开启（插件 outcome "inactive"）：不发签到请求。
+var ErrCheckinInactive = errors.New("checkin activity inactive")
+
+// errCheckinAlready 活动状态说今天已签到（插件 outcome "done"）：IsAlreadyCheckin 认它。
+func errCheckinAlready() error {
+	return &Error{Kind: ErrClient, Status: http.StatusOK, Msg: "already checked in today (今天已签到)"}
+}
+
+// meterPostCN 插件 meter()：POST {chatBase}path，body "{}"，meterAsked 的头。
+func (c *Client) meterPostCN(a *auth.Auth, path string) (json.RawMessage, error) {
+	req, err := http.NewRequest(http.MethodPost, c.chatBase(a)+path, strings.NewReader("{}"))
+	if err != nil {
+		return nil, err
+	}
+	c.BillingHeaders(req, a)
+	return c.doJSON(req)
+}
+
+// meterCheckinCN 插件 checkinOf：活动状态 → 签到。
+func (c *Client) meterCheckinCN(a *auth.Auth) error {
+	raw, err := c.meterPostCN(a, checkinStatusPathV2)
+	if err != nil {
+		if IsAlreadyCheckin(err) || strings.Contains(err.Error(), "code=1001 ") {
+			return errCheckinAlready()
+		}
+		return err
+	}
+	var st struct {
+		Active         bool  `json:"active"`
+		TodayCheckedIn *bool `json:"today_checked_in"`
+		TodayCamel     *bool `json:"todayCheckedIn"`
+	}
+	if len(raw) > 0 && string(raw) != "null" {
+		if err := json.Unmarshal(raw, &st); err != nil {
+			return fmt.Errorf("checkin status unreadable: %w", err)
+		}
+	}
+	if !st.Active {
+		return ErrCheckinInactive
+	}
+	if (st.TodayCheckedIn != nil && *st.TodayCheckedIn) || (st.TodayCheckedIn == nil && st.TodayCamel != nil && *st.TodayCamel) {
+		return errCheckinAlready()
+	}
+	return c.retryBillingTransient(func() error {
+		_, err := c.meterPostCN(a, dailyCheckinPathV2)
+		if err != nil && strings.Contains(err.Error(), "code=1001 ") {
+			return errCheckinAlready()
+		}
 		return err
 	})
 }
@@ -2500,4 +2585,17 @@ func IsAlreadyCheckin(err error) bool {
 
 func truncate(s string, n int) string {
 	return logfmt.Truncate(s, n)
+}
+
+// gzipBytes 把 chat 请求体压成 gzip（插件 gzipSync，默认压缩级别）。
+func gzipBytes(b []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	if _, err := zw.Write(b); err != nil {
+		return nil, err
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }

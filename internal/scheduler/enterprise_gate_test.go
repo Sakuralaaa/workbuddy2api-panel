@@ -49,6 +49,9 @@ func (r *recorderUpstream) server() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		r.record(req.URL.Path)
 		switch {
+		case strings.HasSuffix(req.URL.Path, "/checkin-activity-status"):
+			// 国内版签到先问活动状态（插件 checkinOf）：进行中、今天未签。
+			w.Write([]byte(`{"code":0,"data":{"active":true,"todayCheckedIn":false}}`))
 		case strings.HasSuffix(req.URL.Path, "/get-enterprise-user-usage"):
 			// 企业口径：credit = 本周期已用，limitNum = 分配给本账号的额度。
 			w.Write([]byte(`{"code":0,"msg":"OK","data":{"credit":812.45,"limitNum":2000,` +

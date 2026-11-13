@@ -15,11 +15,13 @@ import (
 
 const (
 	// defaultClientVersion 出站 WorkBuddy 客户端版本段（UA 的 `WorkBuddy/<ver>` 与
-	// 白名单头组的 X-IDE-Version）。国内版对齐 WorkBuddy 5.9.3（2026-10-28 更新源
-	// 当前版本，magpie 读取），国际版对齐桌面端实抓的 5.9.4（workbuddy2api-hub 与
-	// magpie #691 抓包一致）。config upstream.client_version 可覆盖（空 = 内置默认）。
+	// 白名单头组的 X-IDE-Version）。两个版本都对齐 magpie 官方 WorkBuddy 插件
+	// （@magpie-community/opencode-workbuddy-auth 0.2.34）SITES 表：国内版 WorkBuddy
+	// 5.9.3.42398134（2026-10-28 更新源当前版本），国际版 WorkBuddy AI 同为
+	// 5.9.3.42398134（2026-10-29 更新源，CLI 与国内版逐字节相同，仅 product.json 不同）。
+	// config upstream.client_version 可覆盖（空 = 内置默认）。
 	defaultClientVersion       = "5.9.3"
-	defaultClientVersionGlobal = "5.9.4"
+	defaultClientVersionGlobal = "5.9.3"
 	// defaultCliVersion 出站 UA 中 `CLI/<ver>` 段版本。两版本内置 CLI 均为 2.165.0。
 	// config upstream.cli_version 可覆盖（空 = 内置默认）。
 	defaultCliVersion = "2.165.0"
@@ -56,8 +58,8 @@ func (c *Client) clientVersion() string {
 	return c.clientVersionFor(nil)
 }
 
-// clientVersionFor 按账号 realm 取客户端版本：显式配置优先；否则国际版 5.9.4、
-// 国内版 5.9.3（两版本官方桌面端发版节奏不同）。
+// clientVersionFor 按账号 realm 取客户端版本：显式配置优先；否则按 realm 的内置默认
+// （当前两版本都是 5.9.3；保留分 realm 的常量，便于两边发版节奏再次分叉时只改一处）。
 func (c *Client) clientVersionFor(a *auth.Auth) string {
 	if c != nil && c.ClientVersion != "" {
 		return c.ClientVersion
@@ -87,9 +89,9 @@ func (c *Client) cliVersion() string {
 // defaultWorkBuddyUAFor 组装默认客户端出站 UA（官方桌面端 RestOperations 层形状）：
 // `WorkBuddy/<clientVersion> <platform>/<clientVersion> CLI/<cliVersion>`。
 // 平台段（第二段）品牌按 realm 切换——CN 用 applicationName 同值 `WorkBuddy`，
-// global 用国际版 applicationName `workbuddy-ai`（桌面端 5.9.4 实抓：
-// `WorkBuddy/5.9.4 workbuddy-ai/5.9.4 CLI/2.165.0`，workbuddy2api-hub 与 magpie
-// 抓包一致；旧的 `WorkBuddy AI` 是 productName，不是 UA 里的段）。
+// global 用国际版 applicationName `workbuddy-ai`（插件 cliAgent：
+// `WorkBuddy/5.9.3 workbuddy-ai/5.9.3 CLI/2.165.0`；旧的 `WorkBuddy AI` 是
+// productName，不是 UA 里的段）。
 // 官方无任何 UA 随机化，故默认确定性。
 func (c *Client) defaultWorkBuddyUAFor(a *auth.Auth) string {
 	platform := "WorkBuddy"
@@ -177,8 +179,22 @@ func (c *Client) injectAccountStableHeaders(req *http.Request, a *auth.Auth) {
 	req.Header.Set("X-Session-ID", deriveAccountStableID(a.UID, "session"))
 }
 
-// CommonHeaders 设置所有 API 共享的请求头。
+// CommonHeaders 设置非 chat API（模型目录探测等）共享的请求头。
+// official 形态对齐插件 liveModels：sign() 那组账号/客户端/归属头 + Accept json，
+// 不带 Origin/Referer/X-CodeBuddy-Request/Accept-Language/X-Machine-ID 等网关特有头；
+// legacy 形态保留旧头族。
 func (c *Client) CommonHeaders(req *http.Request, a *auth.Auth) {
+	if c.headerProfile() != HeaderProfileLegacy {
+		c.officialSignHeaders(req.Header, a)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+		return
+	}
+	c.legacyCommonHeaders(req, a)
+}
+
+// legacyCommonHeaders header_profile=legacy 的共享头（旧形态，逐字保留）。
+func (c *Client) legacyCommonHeaders(req *http.Request, a *auth.Auth) {
 	req.Header.Set("Content-Type", "application/json")
 	// Accept 非流式默认 application/json（D6：去掉宽松的 text/plain, */*）。
 	// chat 流式路径在 ChatHeaders 覆盖为 event-stream。
@@ -221,7 +237,14 @@ func (c *Client) injectCodeBuddyRequest(req *http.Request) {
 type ChatMeta struct {
 	ConversationID        string // X-Conversation-ID：body 提取的入站值，空则不发（透传优先，不伪造）
 	ConversationRequestID string // X-Conversation-Request-ID / X-Root-Request-ID：聚合主键，必发
-	TraceID               string // X-Trace-ID：入站透传值，空则回落 conversationRequestID
+	TraceID               string // X-Trace-ID：入站透传值，空则回落 conversationRequestID（仅 legacy）
+
+	// CallerConversationID / CallerRequestID：上面两个 ID 是调用方自己在入站请求头里
+	// 给的（X-Conversation-ID / X-Conversation-Request-ID）。official 形态对调用方
+	// 自己的头原样发出（插件 setIds：已有的头保留），否则按账号派生（session.OwnID），
+	// 同一会话 / 轮次在不同账号下是不同 ID。
+	CallerConversationID bool
+	CallerRequestID      bool
 }
 
 // ChatHeaders 在 common 之上加 chat 专属的账号头。
@@ -234,7 +257,7 @@ func (c *Client) ChatHeaders(req *http.Request, a *auth.Auth, clientIP string, m
 		c.officialChatHeaders(req, a, clientIP, meta)
 		return
 	}
-	c.CommonHeaders(req, a)
+	c.legacyCommonHeaders(req, a)
 	// chat 流式 Accept 覆盖 CommonHeaders 的非流式默认（D6）。
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	// AccessToken 加锁快照：keepalive 定时刷新会在 a.mu 内改写它，锁外直读构成数据竞争
@@ -417,6 +440,10 @@ func ExtractClientIP(r *http.Request) string {
 // UA 语义：默认**不设置**（保持现状，Go 客户端自带默认 UA）；仅当显式配置
 // c.UserAgent 非空才覆盖——避免默认路径给 billing 引入新的 UA 指纹。
 func (c *Client) BillingHeaders(req *http.Request, a *auth.Auth) {
+	if c.headerProfile() != HeaderProfileLegacy {
+		c.officialMeterHeaders(req, a)
+		return
+	}
 	// AccessToken 加锁快照（同 ChatHeaders：keepalive 可在 a.mu 内改写）。
 	req.Header.Set("Authorization", "Bearer "+a.AccessTokenValue())
 	req.Header.Set("Accept", "application/json")
@@ -445,7 +472,11 @@ func (c *Client) BillingHeaders(req *http.Request, a *auth.Auth) {
 
 // RefreshHeaders refresh 端点专属头（X-Refresh-Token 只允许出现在这里）。
 func (c *Client) RefreshHeaders(req *http.Request, a *auth.Auth) {
-	c.CommonHeaders(req, a)
+	if c.headerProfile() != HeaderProfileLegacy {
+		c.officialRefreshHeaders(req, a)
+		return
+	}
+	c.legacyCommonHeaders(req, a)
 	req.Header.Set("X-Refresh-Token", a.RefreshToken)
 	if a.EnterpriseID != "" {
 		req.Header.Set("X-Enterprise-Id", a.EnterpriseID)
@@ -454,54 +485,78 @@ func (c *Client) RefreshHeaders(req *http.Request, a *auth.Auth) {
 	req.Header.Set("X-Auth-Refresh-Source", "plugin")
 }
 
-// officialChatHeaders 按官方桌面端内置 CLI 发模型请求的实抓头族组装 chat 出站头
-// （与 magpie 网关、WorkBuddy-plugins 逐字节对齐，后两者已用真实账号验证）：
+// officialSignHeaders 插件 sign()：官方桌面端每个 chat / config 请求都带的账号头、
+// 客户端头与用量归属头（使用端）。顺序与取值逐字对齐插件：
 //
-//	Authorization / X-User-Id / X-Domain / [X-Enterprise-Id + X-Tenant-Id]
-//	X-Product: SaaS · X-IDE-Type/Name: WorkBuddy · X-IDE-Version: <app>
-//	User-Agent: WorkBuddy/<app> <WorkBuddy|workbuddy-ai>/<app> CLI/<cli>
-//	X-Requested-With: XMLHttpRequest
-//	X-Agent-Intent: craft · X-Agent-Purpose: conversation
-//	X-Agent-Type: main · X-Agent-Runtime: local-agent
-//	X-Stainless-*（OpenAI Node SDK 6.25.0 / node v22.21.1）
-//	X-Conversation-ID / -Request-ID / -Message-ID · X-Request-ID · X-Root-Request-ID
-//	[X-Device-Token]
+//	Authorization · X-User-Id（无 uid 也发空值）· X-Domain
+//	X-Product: SaaS · X-IDE-Type: WorkBuddy · User-Agent（三段式）
+//	X-Requested-With: XMLHttpRequest · X-Agent-Intent: craft · X-Agent-Purpose: conversation
+//	X-IDE-Name: WorkBuddy · X-IDE-Version: <app> · [X-Enterprise-Id + X-Tenant-Id]
 //
-// 官方 CLI 不发、只有网关才会发的头一律不发：Origin / Referer（浏览器形态）、
-// X-CodeBuddy-Request、Accept-Language、X-Machine-ID / X-Session-ID、
-// X-Trace-ID / X-B3-*、X-No-* 声明头。这些「多出来的头」本身就是非官方客户端特征。
-// 客户端 IP 透传（PassthroughIP）仍按配置生效——它默认关闭，开了是用户的明确选择。
-func (c *Client) officialChatHeaders(req *http.Request, a *auth.Auth, clientIP string, meta ChatMeta) {
-	h := req.Header
-	h.Set("Content-Type", "application/json")
-	h.Set("Accept", "application/json")
+// 企业头两个版本都发（插件 enterpriseHeaders 不分站点）：个人账号没有就不发。
+// client_name="SaaS" 时只发 X-Product（用户显式还原旧行为）；其他 client_name 跟随到
+// X-IDE-Type/Name。
+func (c *Client) officialSignHeaders(h http.Header, a *auth.Auth) {
 	if at := a.AccessTokenValue(); at != "" {
 		h.Set("Authorization", "Bearer "+at)
 	}
-	if a.UID != "" {
-		h.Set("X-User-Id", a.UID)
+	uid := ""
+	if a != nil {
+		uid = a.UID
 	}
+	h.Set("X-User-Id", uid)
 	h.Set("X-Domain", officialDomainFor(a))
-	if a != nil && !a.IsGlobal() && a.EnterpriseID != "" {
-		h.Set("X-Enterprise-Id", a.EnterpriseID)
-		h.Set("X-Tenant-Id", a.EnterpriseID)
-	}
-	ver := c.clientVersionFor(a)
-	if c != nil && c.ClientName == "SaaS" {
-		h.Set("X-Product", "SaaS")
-	} else {
-		name := c.attributionClientName()
-		h.Set("X-Product", "SaaS")
+	h.Set("X-Product", "SaaS")
+	name := c.attributionClientName()
+	saas := c != nil && c.ClientName == "SaaS"
+	if !saas {
 		h.Set("X-IDE-Type", name)
-		h.Set("X-IDE-Name", name)
-		h.Set("X-IDE-Version", ver)
 	}
 	h.Set("User-Agent", c.userAgent(a))
 	h.Set("X-Requested-With", "XMLHttpRequest")
 	h.Set("X-Agent-Intent", "craft")
 	h.Set("X-Agent-Purpose", "conversation")
+	if !saas {
+		h.Set("X-IDE-Name", name)
+		h.Set("X-IDE-Version", c.clientVersionFor(a))
+	}
+	setEnterpriseHeaders(h, a)
+}
+
+// setEnterpriseHeaders 插件 enterpriseHeaders：企业（团队）账号的 X-Enterprise-Id 与
+// X-Tenant-Id（同为 enterpriseId）；个人账号不发。
+func setEnterpriseHeaders(h http.Header, a *auth.Auth) {
+	if a == nil {
+		return
+	}
+	if id := strings.TrimSpace(a.EnterpriseID); id != "" {
+		h.Set("X-Enterprise-Id", id)
+		h.Set("X-Tenant-Id", id)
+	}
+}
+
+// officialChatHeaders 按官方桌面端内置 CLI 发模型请求的头族组装 chat 出站头，逐字节
+// 对齐 magpie 官方 WorkBuddy 插件（sign + chatHeaders + setIds）：
+//
+//	Content-Type: application/json（OpenAI SDK 自带）
+//	sign() 全组（见 officialSignHeaders）
+//	X-Agent-Type: main · X-Agent-Runtime: local-agent（两个版本 5.9 都发）
+//	Accept: application/json · X-Stainless-*（OpenAI Node SDK 6.25.0 / node v22.21.1）
+//	X-Conversation-Message-ID = X-Request-ID（每条请求新生成）
+//	X-Conversation-Request-ID（一次 user send 一个，按账号派生）
+//	X-Conversation-ID（会话级，按账号派生）
+//	[X-Device-Token]（仅当配置了；本项目的显式选项）
+//
+// 官方 CLI 不发、只有网关才会发的头一律不发：Origin / Referer、X-CodeBuddy-Request、
+// Accept-Language、X-Machine-ID / X-Session-ID、X-Root-Request-ID、X-Trace-ID / X-B3-*、
+// X-No-* 声明头。客户端 IP 透传（PassthroughIP）仍按配置生效——默认关闭。
+func (c *Client) officialChatHeaders(req *http.Request, a *auth.Auth, clientIP string, meta ChatMeta) {
+	h := req.Header
+	h.Set("Content-Type", "application/json")
+	c.officialSignHeaders(h, a)
 	h.Set("X-Agent-Type", "main")
 	h.Set("X-Agent-Runtime", agentRuntime)
+	h.Set("Accept", "application/json")
 	h.Set("X-Stainless-Retry-Count", "0")
 	h.Set("X-Stainless-Timeout", "1200")
 	h.Set("X-Stainless-Lang", "js")
@@ -513,32 +568,95 @@ func (c *Client) officialChatHeaders(req *http.Request, a *auth.Auth, clientIP s
 	c.injectClientIP(req, clientIP)
 	c.injectDeviceToken(req, a)
 
-	convReqID := meta.ConversationRequestID
-	if convReqID == "" {
-		convReqID = session.NewMessageID()
-	}
-	conversationID := meta.ConversationID
-	if conversationID == "" {
-		conversationID = session.NewMessageID()
-	}
+	scope := accountScope(a)
 	messageID := session.NewMessageID()
-	h.Set("X-Conversation-ID", conversationID)
-	h.Set("X-Conversation-Request-ID", convReqID)
 	h.Set("X-Conversation-Message-ID", messageID)
 	h.Set("X-Request-ID", messageID)
-	h.Set("X-Root-Request-ID", convReqID)
+	convReqID := meta.ConversationRequestID
+	switch {
+	case convReqID == "":
+		convReqID = session.NewMessageID()
+	case !meta.CallerRequestID:
+		convReqID = session.OwnID("turn", scope, convReqID)
+	}
+	h.Set("X-Conversation-Request-ID", convReqID)
+	conversationID := meta.ConversationID
+	switch {
+	case conversationID == "":
+		// 插件在既无会话也无 user 消息时不发该头；本项目历史上国际端点对缺失
+		// X-Conversation-ID 的请求回 11128（issue #190），故仍补一个随机值。
+		conversationID = session.NewMessageID()
+	case !meta.CallerConversationID:
+		conversationID = session.OwnID("conversation", scope, conversationID)
+	}
+	h.Set("X-Conversation-ID", conversationID)
 }
 
-// officialDomainFor 官方 CLI 的 X-Domain：账号登录会话自带的域优先；否则按 realm
-// 回落到站点主机（国内 copilot.tencent.com，国际 www.workbuddy.ai）。
-func officialDomainFor(a *auth.Auth) string {
-	if a != nil && a.IsGlobal() {
-		return "www.workbuddy.ai"
+// accountScope 插件 scopeOf：会话 / 轮级 ID 按「uid|enterpriseId|」派生到账号。
+func accountScope(a *auth.Auth) string {
+	if a == nil {
+		return ""
 	}
-	if d := a.DomainValue(); d != "" {
-		return d
+	return a.UID + "|" + a.EnterpriseID + "|"
+}
+
+// officialDomainFor 插件 domainOf：账号登录会话自带的域优先（两个版本都是）；否则按
+// realm 回落到站点主机（国内 copilot.tencent.com，国际 www.workbuddy.ai）。
+func officialDomainFor(a *auth.Auth) string {
+	if a != nil {
+		if d := strings.TrimSpace(a.DomainValue()); d != "" {
+			return d
+		}
+		if a.IsGlobal() {
+			return "www.workbuddy.ai"
+		}
 	}
 	return "copilot.tencent.com"
+}
+
+// officialUAShort 插件 call() / meterAsked 的单段 UA `WorkBuddy/<app>`；config
+// user_agent 显式覆盖优先。
+func (c *Client) officialUAShort(a *auth.Auth) string {
+	if c != nil && c.UserAgent != "" {
+		return c.UserAgent
+	}
+	return "WorkBuddy/" + c.clientVersionFor(a)
+}
+
+// officialMeterHeaders 插件 meterAsked：billing 计费 API（余额 / 签到 / 上报等）的头：
+//
+//	Content-Type · Accept: application/json · User-Agent: WorkBuddy/<app>
+//	Authorization · X-User-Id · X-Domain · X-Product: SaaS · X-IDE-Type: WorkBuddy
+//	[X-Enterprise-Id + X-Tenant-Id] · [X-Device-Token]（仅当配置了）
+func (c *Client) officialMeterHeaders(req *http.Request, a *auth.Auth) {
+	h := req.Header
+	h.Set("Content-Type", "application/json")
+	h.Set("Accept", "application/json")
+	h.Set("User-Agent", c.officialUAShort(a))
+	h.Set("Authorization", "Bearer "+a.AccessTokenValue())
+	h.Set("X-User-Id", a.UID)
+	h.Set("X-Domain", officialDomainFor(a))
+	h.Set("X-Product", "SaaS")
+	if c == nil || c.ClientName != "SaaS" {
+		h.Set("X-IDE-Type", c.attributionClientName())
+	}
+	setEnterpriseHeaders(h, a)
+	c.injectDeviceToken(req, a)
+}
+
+// officialRefreshHeaders 插件 renew → call()：token 刷新的头。X-Refresh-Token 只出现在这里。
+//
+//	Content-Type · Accept: application/json · User-Agent: WorkBuddy/<app>
+//	X-Refresh-Token · X-Auth-Refresh-Source: plugin · X-Domain · [X-Enterprise-Id + X-Tenant-Id]
+func (c *Client) officialRefreshHeaders(req *http.Request, a *auth.Auth) {
+	h := req.Header
+	h.Set("Content-Type", "application/json")
+	h.Set("Accept", "application/json")
+	h.Set("User-Agent", c.officialUAShort(a))
+	h.Set("X-Refresh-Token", a.RefreshToken)
+	h.Set("X-Auth-Refresh-Source", "plugin")
+	h.Set("X-Domain", officialDomainFor(a))
+	setEnterpriseHeaders(h, a)
 }
 
 // stainlessOS X-Stainless-OS：OpenAI Node SDK 取 process.platform 的映射。默认按网关

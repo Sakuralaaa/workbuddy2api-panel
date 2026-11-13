@@ -26,6 +26,9 @@ func TestDailyCheckinRetriesTransient500(t *testing.T) {
 	shortBillingRetry(t)
 	var calls int32
 	c := testClient(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, checkinStatusPathV2) {
+			return activeStatus(), nil
+		}
 		if !strings.HasSuffix(r.URL.Path, "/v2/billing/meter/daily-checkin") {
 			return nil, errors.New("wrong path")
 		}
@@ -46,6 +49,9 @@ func TestDailyCheckinRetriesExhausted(t *testing.T) {
 	shortBillingRetry(t)
 	var calls int32
 	c := testClient(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, checkinStatusPathV2) {
+			return activeStatus(), nil
+		}
 		atomic.AddInt32(&calls, 1)
 		return jsonResp(500, `{"code":10000,"msg":"API request failed with status code: 500"}`), nil
 	})
@@ -62,6 +68,9 @@ func TestDailyCheckinNoRetryOnBusinessError(t *testing.T) {
 	shortBillingRetry(t)
 	var calls int32
 	c := testClient(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, checkinStatusPathV2) {
+			return activeStatus(), nil
+		}
 		atomic.AddInt32(&calls, 1)
 		// 「今天已签到」是业务幂等拒绝（code!=0），重试无意义。
 		return jsonResp(200, `{"code":14001,"msg":"今日已签到"}`), nil
@@ -79,6 +88,9 @@ func TestDailyCheckinNoRetryOn4xx(t *testing.T) {
 	shortBillingRetry(t)
 	var calls int32
 	c := testClient(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, checkinStatusPathV2) {
+			return activeStatus(), nil
+		}
 		atomic.AddInt32(&calls, 1)
 		return jsonResp(403, `{"code":11140,"msg":"request illegal"}`), nil
 	})
@@ -110,5 +122,61 @@ func TestUserResourceDetailedRetriesTransient500(t *testing.T) {
 	}
 	if n := atomic.LoadInt32(&calls); n != 2 {
 		t.Fatalf("calls=%d want 2（1 次失败 + 1 次重试）", n)
+	}
+}
+
+// activeStatus 国内版签到活动状态：进行中、今天未签（插件 checkinOf 第一步）。
+func activeStatus() *http.Response {
+	return jsonResp(200, `{"code":0,"msg":"ok","data":{"active":true,"todayCheckedIn":false}}`)
+}
+
+// TestDailyCheckinCNMeterFlow 插件 checkin.test.mjs：国内版先问活动状态再经 /v2 签到，
+// 都走账号的 API 主机（chatBase），POST "{}"，meter 头；已签 / 未开活动不再发签到。
+func TestDailyCheckinCNMeterFlow(t *testing.T) {
+	var paths []string
+	var claim *http.Request
+	var claimBody string
+	c := testClient(func(r *http.Request) (*http.Response, error) {
+		paths = append(paths, r.URL.Host+r.URL.Path)
+		if strings.HasSuffix(r.URL.Path, checkinStatusPathV2) {
+			return activeStatus(), nil
+		}
+		claim = r
+		b, _ := readTestBody(r)
+		claimBody = string(b)
+		return jsonResp(200, `{"code":0,"data":{"credit":100}}`), nil
+	})
+	if err := c.DailyCheckin(&auth.Auth{AccessToken: "at", UID: "u"}); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"chat.example/v2/billing/meter/checkin-activity-status", "chat.example/v2/billing/meter/daily-checkin"}
+	if strings.Join(paths, ",") != strings.Join(want, ",") {
+		t.Fatalf("paths = %v, want %v", paths, want)
+	}
+	if claim.Method != http.MethodPost || claimBody != "{}" || claim.Header.Get("Authorization") != "Bearer at" ||
+		claim.Header.Get("X-User-Id") != "u" || claim.Header.Get("User-Agent") != "WorkBuddy/5.9.3" {
+		t.Errorf("claim = %s %q %v", claim.Method, claimBody, claim.Header)
+	}
+
+	for _, tc := range []struct {
+		status string
+		check  func(error) bool
+	}{
+		{`{"code":0,"data":{"active":true,"today_checked_in":true,"daily_credit":100}}`, IsAlreadyCheckin},
+		{`{"code":1001,"msg":"今天已签到，请明天再来"}`, IsAlreadyCheckin},
+		{`{"code":0,"data":{"active":false,"todayCheckedIn":false}}`, func(err error) bool { return errors.Is(err, ErrCheckinInactive) }},
+	} {
+		claims := 0
+		c := testClient(func(r *http.Request) (*http.Response, error) {
+			if strings.HasSuffix(r.URL.Path, checkinStatusPathV2) {
+				return jsonResp(200, tc.status), nil
+			}
+			claims++
+			return jsonResp(200, `{"code":0,"data":{}}`), nil
+		})
+		err := c.DailyCheckin(&auth.Auth{AccessToken: "at", UID: "u"})
+		if !tc.check(err) || claims != 0 {
+			t.Errorf("status %s: err=%v claims=%d", tc.status, err, claims)
+		}
 	}
 }

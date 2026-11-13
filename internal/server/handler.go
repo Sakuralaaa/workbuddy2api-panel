@@ -789,8 +789,15 @@ func (h *Handler) chatCompletions(w http.ResponseWriter, r *http.Request) {
 		convID = sessKey
 	}
 	chatMeta := upstream.ChatMeta{ConversationID: convID}
+	// 调用方自己在请求头里给的会话 ID 原样发出（插件 setIds：已有的头保留），
+	// 其余按账号派生（见 upstream.ChatMeta.CallerConversationID）。
+	if v := strings.TrimSpace(r.Header.Get("X-Conversation-ID")); v != "" {
+		chatMeta.ConversationID = v
+		chatMeta.CallerConversationID = true
+	}
 	if v := r.Header.Get("X-Conversation-Request-ID"); v != "" {
 		chatMeta.ConversationRequestID = v
+		chatMeta.CallerRequestID = true
 	} else if turnKey != "" && sessKey != "" {
 		// 轮级复合键：sessKey 入键防跨会话同轮文本互撞（#170 统一轮级）。
 		chatMeta.ConversationRequestID = session.TurnRequestID(sessKey + ":" + turnKey)

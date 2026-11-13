@@ -44,6 +44,9 @@ func searchMetaFromRequest(r *http.Request) upstream.ChatMeta {
 		ConversationRequestID: strings.TrimSpace(r.Header.Get("X-Conversation-Request-ID")),
 		TraceID:               strings.TrimSpace(r.Header.Get("X-Trace-ID")),
 	}
+	// 透传语义：调用方给的 ID 原样发出（official 形态不再按账号派生）。
+	meta.CallerConversationID = meta.ConversationID != ""
+	meta.CallerRequestID = meta.ConversationRequestID != ""
 	if meta.ConversationRequestID == "" {
 		meta.ConversationRequestID = session.NewMessageID()
 	}

@@ -290,7 +290,7 @@ func TestChatStreamSendsHeadersAndStreamTrue(t *testing.T) {
 		gotAuth = r.Header.Get("Authorization")
 		gotUID = r.Header.Get("X-User-Id")
 		gotProduct = r.Header.Get("X-Product")
-		gotBody, _ = io.ReadAll(r.Body)
+		gotBody, _ = readTestBody(r)
 		return &http.Response{
 			StatusCode: 200,
 			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -325,7 +325,7 @@ func TestFetchModelsEffortsDriveBodyDowngrade(t *testing.T) {
 		case strings.HasSuffix(r.URL.Path, "/v3/config"):
 			return jsonResp(200, `{"code":0,"data":{"models":[]}}`), nil
 		default:
-			outbound, _ = io.ReadAll(r.Body)
+			outbound, _ = readTestBody(r)
 			return &http.Response{
 				StatusCode: 200,
 				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -435,7 +435,7 @@ func TestUserResourceAggregation(t *testing.T) {
 		if r.Method != http.MethodPost {
 			return nil, errors.New("want POST")
 		}
-		body, _ := io.ReadAll(r.Body)
+		body, _ := readTestBody(r)
 		if !bytes.Contains(body, []byte(`"ProductCode":"p_tcaca"`)) {
 			return nil, errors.New("missing ProductCode: " + string(body))
 		}
@@ -474,6 +474,9 @@ func TestUserResourceNegativeClamped(t *testing.T) {
 
 func TestDailyCheckinAlready(t *testing.T) {
 	c := testClient(func(r *http.Request) (*http.Response, error) {
+		if strings.HasSuffix(r.URL.Path, checkinStatusPathV2) {
+			return activeStatus(), nil
+		}
 		if !strings.HasSuffix(r.URL.Path, "/v2/billing/meter/daily-checkin") {
 			return nil, errors.New("wrong path")
 		}

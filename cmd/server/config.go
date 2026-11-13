@@ -153,15 +153,16 @@ type Config struct {
 		// 默认值已对齐官方 WorkBuddy 桌面形态（三段式），用户仍可配完全自定义值改写。
 		UserAgent string `json:"user_agent"`
 		// ClientVersion WorkBuddy 客户端版本段（出站 UA 的 `WorkBuddy/<ver>` 与归属头
-		// X-IDE-Version）。空 = 内置默认（国内 5.9.3 / 国际 5.9.4）。
+		// X-IDE-Version）。空 = 内置默认（国内 / 国际都是 5.9.3，对齐插件 SITES 表）。
 		ClientVersion string `json:"client_version"`
 		// CliVersion 出站 UA 中 `CLI/<ver>` 段的版本。空 = 内置默认（官方内置 CLI 2.165.0）。
 		CliVersion string `json:"cli_version"`
 		// ClientName 用量归属头取值（X-Product / X-IDE-Name / X-IDE-Type / X-IDE-Version）。
 		// 空 = 旧行为 X-Product="SaaS" 不设 X-IDE-*；配 "WorkBuddy" 则四头跟随。
 		ClientName string `json:"client_name"`
-		// HeaderProfile chat 出站头族："official"（默认，按官方桌面端 CLI 实抓，与
-		// magpie 对齐）或 "legacy"（旧形态，带 Origin/X-CodeBuddy-Request/B3 等，仅回退用）。
+		// HeaderProfile 出站头族："official"（默认，按 magpie 官方 WorkBuddy 插件逐字节
+		// 对齐：chat / 计费 / 刷新 / 目录探测的头、chat 体 gzip、国内版签到先问活动状态）或
+		// "legacy"（旧形态，带 Origin/X-CodeBuddy-Request/B3 等、明文 chat 体，仅回退用）。
 		HeaderProfile string `json:"header_profile"`
 		// SDKOS / SDKArch X-Stainless-OS / -Arch；空 = 按网关主机（Linux / x64 等），
 		// 可改成桌面形态（"MacOS"/"arm64"、"Windows"/"x64"）。
