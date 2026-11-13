@@ -13,6 +13,7 @@ let refTimer = null;
 let mdFilter = { q: '', realm: '', cap: '', effort: '', promo: '', sort: 'default' };
 let mdAll = [], mdProbes = {}, mdProbeOf = () => undefined;
 let mdLocks = [], mdRecent = [];
+let mdTests = {}; // 模型测试结果缓存：id → { ok, latency_ms, reply, error }
 let reqFilter = { q: '', outcome: '' };
 let reqEntries = [];
 let usDim = 'account', usCreditDim = 'account', usSort = 'total';
@@ -35,11 +36,13 @@ function applyTheme() {
   $('btnTheme').title = eff === 'light' ? '切换到深色' : '切换到浅色';
 }
 addEventListener('change', applyTheme);
-$('btnTheme').onclick = () => {
+function toggleTheme() {
   theme = effTheme() === 'light' ? 'dark' : 'light';
   localStorage.setItem(LS_THEME, theme);
   applyTheme();
-};
+}
+$('btnTheme').onclick = toggleTheme;
+if ($('btnCoverTheme')) $('btnCoverTheme').onclick = toggleTheme;
 applyTheme();
 
 /* ── 请求 ─────────────────────────────────────────────────────────── */
@@ -328,17 +331,38 @@ function formatRate(rate) {
 }
 
 /* ── 密钥门 ───────────────────────────────────────────────────────── */
-function openKey() { $('keyVeil').classList.add('on'); setTimeout(() => $('keyInput').focus(), 60); }
+/* 登录封面：任一管理接口 401 即盖上封面（服务端对全部 /panel/api/* 强制校验管理密钥）。 */
+function openKey() {
+  const wasOpen = $('keyVeil').classList.contains('on');
+  $('keyVeil').classList.add('on');
+  if ($('app')) $('app').classList.add('locked');
+  if (!wasOpen) setTimeout(() => $('keyInput').focus(), 60);
+}
+function closeKey() {
+  $('keyVeil').classList.remove('on');
+  if ($('app')) $('app').classList.remove('locked');
+}
 $('btnKey').onclick = async () => {
   const v = $('keyInput').value.trim();
-  if (!v) return;
+  if (!v) { $('keyInput').focus(); return; }
   localStorage.setItem(LS_KEY, v);
+  const b = $('btnKey');
+  b.disabled = true;
   try {
-    await api('overview');
+    await api('auth/check');
     $('keyErr').hidden = true;
-    $('keyVeil').classList.remove('on');
+    $('keyInput').value = '';
+    closeKey();
     start();
-  } catch (e) { $('keyErr').hidden = false; }
+    go(view);
+  } catch (e) { $('keyErr').hidden = false; $('keyInput').select(); }
+  finally { b.disabled = false; }
+};
+if ($('btnLogout')) $('btnLogout').onclick = () => {
+  localStorage.removeItem(LS_KEY);
+  if (refTimer) { clearInterval(refTimer); refTimer = null; }
+  $('keyErr').hidden = true;
+  openKey();
 };
 $('keyInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnKey').click(); });
 
@@ -351,33 +375,46 @@ let lastPackagesAt = 0;
 let expFetching = false;                       // 到期卡片在途标记（防重复打上游）
 const EXP_FRESH_MS = 2 * 60 * 1000;            // 缓存新鲜窗口：2 分钟内复用
 
-const TITLES = { accounts: '账号池', usage: '用量', packages: '积分构成', taskscenter: '任务中心', models: '模型与档位', config: '配置', logs: '运行日志' };
+const TITLES = { accounts: '账号管理', credits: '积分管理', usage: '用量管理', models: '模型管理', keys: '密钥管理', tasks: '任务管理', schedule: '调度管理', logs: '日志管理' };
+/* 旧版 hash（书签 / 外链）映射到新页面，功能都还在。 */
+const VIEW_ALIAS = { packages: 'credits', taskscenter: 'tasks', config: 'schedule' };
+/* v3.js 定义的页面钩子（加载顺序在 app.js 之后；顶层调用一律经此判空）。 */
+function v3(name, ...args) {
+  const fn = globalThis['v3_' + name];
+  return typeof fn === 'function' ? fn(...args) : undefined;
+}
 function go(v) {
+  v = VIEW_ALIAS[v] || v;
+  if (!(v in TITLES)) v = 'accounts';
   view = v;
   document.querySelectorAll('.view').forEach(s => s.hidden = s.id !== 'view-' + v);
-  document.querySelectorAll('.nav a').forEach(a => a.classList.toggle('on', a.dataset.view === v));
+  document.querySelectorAll('.tnav a').forEach(a => a.classList.toggle('on', a.dataset.view === v));
   $('ttl').textContent = TITLES[v];
+  document.title = TITLES[v] + ' · WorkBuddy2API';
   if (v === 'models' && !$('mdBody').children.length) loadModels();
-  if (v === 'config') loadConfig();
-  if (v === 'logs') loadLogs();
-  if (v === 'usage') loadUsage();
-  if (v === 'packages') loadPackages();
+  if (v === 'schedule') { loadConfig(); v3('loadSchedule'); }
+  if (v === 'logs') { loadLogs(); v3('loadKeyFilter'); }
+  if (v === 'usage') v3('loadUsageView');
+  if (v === 'credits') { loadOverview(true); renderCachedCompensation(); v3('renderCredits'); }
+  if (v === 'keys') v3('loadKeys');
+  if (v === 'tasks') { reattachQueueView(); v3('loadTasksView'); }
   // 到期提醒卡片：默认可见，进页面即用 overview 快照渲染（零上游请求，随首页统计
   // 每轮刷新）。不再「打开账号池就打上游」——逐账号实时查在账号多时会卡死面板。
   // 完整逐包明细由卡片上的「检查」按钮显式触发（loadPackages/loadExpiry）。
-  if (v === 'taskscenter') reattachQueueView();
 }
-document.querySelectorAll('.nav a').forEach(a => a.onclick = e => { e.preventDefault(); go(a.dataset.view); history.replaceState(null, '', '#' + a.dataset.view); });
+document.querySelectorAll('.tnav a').forEach(a => a.onclick = e => { e.preventDefault(); go(a.dataset.view); history.replaceState(null, '', '#' + a.dataset.view); });
 /* 首次进入延到本轮脚本求值之后再 go()。
    原因：go() 会同步触发视图的数据加载（loadUsage/loadLogs/loadPackages…），而这些
    函数读到的模块级 let/const（usageRateWarmAt、PK_* 等）在文件后半段才初始化——
    直接深链 #usage / #packages 打开页面时会踩 TDZ（"Cannot access 'x' before
    initialization"），表现为该页永远显示"读取失败"，而点导航进去一切正常。
    延迟 0ms 让整份脚本先求值完，是修这一类问题最省事也最不容易再犯的办法。 */
-setTimeout(() => {
-  const hash = (location.hash || '#accounts').slice(1);
-  go(hash in TITLES ? hash : 'accounts');
-}, 0);
+/* v3.js / mobile.js 是 app.js 之后的独立脚本：setTimeout(0) 可能先于它们求值触发，
+   深链 #usage / #schedule 时 v3('…') 找不到函数，页面空白。等 DOMContentLoaded
+   （全部同步脚本执行完）再路由；已过该阶段则退回 setTimeout(0)。 */
+function bootRoute() { go((location.hash || '#accounts').slice(1)); }
+if (typeof document !== 'undefined' && document.readyState === 'loading' && document.addEventListener) document.addEventListener('DOMContentLoaded', bootRoute, { once: true });
+else setTimeout(bootRoute, 0);
 
 /* accActsHtml 账号行操作：最多两个直出按钮（情境主操作 + 最常用的签到/余额），
    其余收进「更多」菜单。按钮的 data-a / data-u 不变，#accBody 的事件委托照常命中。
@@ -450,78 +487,12 @@ window.addEventListener('scroll', () => closeMenus(), true);
 window.addEventListener('resize', () => closeMenus());
 
 /* ── 账号池 ───────────────────────────────────────────────────────── */
+/* renderAccounts 账号管理：插件风格账号卡片（v3.js renderAccountCards；按钮 data-a / data-u
+   与旧表格一致，#accBody 的事件委托照常命中）。 */
 function renderAccounts(list) {
-  const tb = $('accBody');
-  if (!list.length) {
-    tb.innerHTML = '<tr><td colspan="9"><div class="empty"><div class="big">账号池是空的</div>点击右上角「添加账号」，用浏览器登录一个 WorkBuddy 账号</div></td></tr>';
-    return;
+  if (v3('renderAccountCards', list) === undefined) {
+    $('accBody').innerHTML = '<div class="empty cards-empty">' + list.length + ' 个账号</div>';
   }
-  // 有总额度（credits_total）→ 进度条按自身 剩余/总额 百分比；旧数据无总额 → 退回池内最高=100%
-  const maxCred = Math.max(1, ...list.map(s => s.credits || 0));
-  tb.innerHTML = list.map(s => {
-    const bl = (new Date(s.breaker_until || 0) - Date.now()) / 1000;
-    const dg = (new Date(s.degrade_until || 0) - Date.now()) / 1000;
-    const cool = Math.max(s.cool_remaining_sec || 0, bl > 0 ? bl : 0, dg > 0 ? dg : 0);
-    let cls = '', tag;
-    if (s.disabled) { cls = 'off'; tag = '<span class="tag bad">已禁用</span>'; }
-    else if (s.paused) { cls = 'off'; tag = '<span class="tag warn">已暂停选号</span>'; }
-    else if (cool > 0) {
-      cls = 'cool';
-      const kind = bl > Math.max(s.cool_remaining_sec || 0, dg > 0 ? dg : 0) ? '熔断'
-        : (dg > (s.cool_remaining_sec || 0) ? '连败降权' : (s.cool_kind === 'hard_credit' ? '积分冷却' : '限流冷却'));
-      tag = '<span class="tag warn">' + kind + ' · ' + dur(cool) + '</span>';
-    } else tag = '<span class="tag ok">可用</span>' + (s.in_flight ? '' : '');
-    const note = s.reason ? '<div class="hint" style="font-size:11.5px;color:var(--ink-3);margin-top:3px">' + esc(s.reason) + '</div>' : '';
-    const rateLimits = rateLimitRowsHtml(s.rate_limited_models, Date.now());
-    const short = s.uid.length > 16 ? s.uid.slice(0, 16) + '…' : s.uid;
-    // 企业版不限量：上游 limitNum == -1，网关以 credits_total=-1 透出（见 upstream
-    // enterpriseUnlimitedTotal）。此时剩余额度不参与展示，直接标「不限」。
-    const unlimited = s.credits_total === -1;
-    const cred = unlimited ? '不限'
-      : (s.credits == null ? '—' : (s.credits_total > 0 ? s.credits + '<span class="of">/' + s.credits_total + '</span>' : String(s.credits)));
-    const pct = unlimited ? 100
-      : (s.credits_total > 0
-        ? Math.min(100, Math.round((s.credits || 0) / s.credits_total * 100))
-        : Math.round((s.credits || 0) / maxCred * 100));
-    // 成本台账 tooltip（model_costs）：每模型实测单价（≤0 = 实测免费），运维据此
-    // 看「为什么总选它」——免费号垄断 / 单价排序一眼可见。
-    let credTip;
-    if (unlimited) credTip = '企业版不限量（上游 limitNum=-1）';
-    else if (s.credits_total > 0) {
-      credTip = (s.enterprise ? '企业版剩余额度 ' : '剩余 ')
-        + s.credits + ' / ' + (s.enterprise ? '分配 ' : '总额 ') + s.credits_total + '（' + pct + '%）';
-    } else credTip = '积分（相对池内最高）';
-    const costs = (s.model_costs || []).filter(c => c.model);
-    if (costs.length) {
-      credTip += '\n实测单价（credits/1K）：\n' + costs.map(c =>
-        '  ' + c.model + '：' + (c.cost_per_1k <= 0 ? '免费' : c.cost_per_1k)).join('\n');
-    }
-    const frozen = s.disabled || cool > 0;
-    // 失败数只在占比明显（>10%）时标红：零星失败是常态，满屏红字等于没有重点。
-    const errHigh = (s.err_total || 0) > 0 && (s.err_total || 0) / ((s.success_count || 0) + (s.err_total || 0)) > 0.1;
-    const tu = s.token_usage || {};
-    const req = tu.request_count || 0;
-    const totalTok = formatTokenCount(tu.total_tokens);
-    const totalTokUnit = totalTok === '—' ? '' : '<em>tok</em>';
-    const latency = formatLatency(tu.last_latency_ms);
-    const rate = formatRate(tu.last_tokens_per_second);
-    const usageTitle = '最近一次：' + req + ' 次 / ' + totalTok + ' / 延迟 ' + latency + ' / ' + rate;
-    return '<tr class="' + cls + '" title="uid: ' + esc(s.uid) + '">' +
-      '<td class="mark" aria-hidden="true"><i></i></td>' +
-      '<td class="who"><div class="nm">' + remarkName(s.uid, s.nickname ? esc(s.nickname) : '<span style="color:var(--ink-3)">未命名</span>') + (s.realm === 'global' ? ' <span class="realm-tag">国际版</span>' : '') + (s.enterprise ? ' <span class="realm-tag">企业版</span>' : '') + '</div><div class="id">' + esc(short) + '</div></td>' +
-      '<td>' + tag + note + rateLimits + '</td>' +
-      '<td class="cred" title="' + esc(credTip) + '"><div class="n">' + cred + '</div><div class="bar"><i style="width:' + pct + '%"></i></div></td>' +
-      '<td class="num">' + (s.success_count || 0) + '<span class="slash">/</span><span class="err-n' + (errHigh ? ' has' : '') + '">' + (s.err_total || 0) + '</span></td>' +
-      '<td class="num">' + (s.in_flight || 0) + '</td>' +
-      '<td class="num usage-cell" title="' + esc(usageTitle) + '"><span class="usage-line" aria-label="' + esc(usageTitle) + '">' +
-        '<span class="usage-item usage-count"><b>' + req + '</b><em>次</em></span>' +
-        '<span class="usage-item usage-total"><b>' + totalTok + '</b>' + totalTokUnit + '</span>' +
-        '<span class="usage-item usage-latency"><b>' + latency + '</b></span>' +
-        '<span class="usage-item usage-rate"><b>' + rate + '</b></span>' +
-      '</span></td>' +
-      '<td class="num" style="color:var(--ink-3)">' + ago(s.last_success) + '</td>' +
-      '<td class="acts">' + accActsHtml(s, frozen) + '</td></tr>';
-  }).join('');
 }
 
 // renderModelLocks 模型锁池：哪些模型不能用、锁了几个号、还要锁多久。
@@ -570,13 +541,14 @@ async function loadOverview(quiet) {
     $('sDisabled').textContent = d.disabled;
     // 暂停选号单列（issue #125）：它只关选号、照常签到保活，与禁用是两种状态。
     if ($('sPaused')) $('sPaused').textContent = d.paused == null ? '-' : d.paused;
+    // credits_total = -1 表示企业版不限额：不计入总额，否则合计会少 1。
     const remSum = (d.accounts || []).reduce((a, s) => a + (s.credits || 0), 0);
-  const totSum = (d.accounts || []).reduce((a, s) => a + (s.credits_total || 0), 0);
-  $('sCredits').textContent = totSum > 0 ? remSum + ' / ' + totSum : remSum;
+    const totSum = (d.accounts || []).reduce((a, s) => a + ((s.credits_total || 0) > 0 ? s.credits_total : 0), 0);
+    const loc = n => Number(n).toLocaleString('zh-CN');
+    $('sCredits').textContent = totSum > 0 ? loc(remSum) + ' / ' + loc(totSum) : loc(remSum);
     $('sSticky').textContent = d.sticky_sessions;
-    $('navSub').textContent = 'v' + d.version;
-    $('navVer').textContent = 'v' + d.version;
-    $('navRedis').textContent = d.redis_mode === 'upstash' ? 'Redis 镜像' : '本地内存';
+    if ($('navVer') && d.version) $('navVer').textContent = 'v' + String(d.version).replace(/^v/, '');
+    $('navRedis').textContent = d.storage || (d.redis_mode === 'upstash' ? '本地文件 + Upstash Redis' : '本地内存');
     $('navState').textContent = d.healthy > 0 ? '服务正常' : (d.total ? '无可用账号' : '待添加账号');
     const p = $('navPulse');
     p.className = 'pulse' + (d.healthy > 0 ? '' : (d.total ? ' warn' : ' bad'));
@@ -585,6 +557,7 @@ async function loadOverview(quiet) {
     $('subMeta').textContent = '运行 ' + (up >= 86400 ? Math.floor(up / 86400) + ' 天 ' : '') + Math.floor(up % 86400 / 3600) + ' 时 ' + Math.floor(up % 3600 / 60) + ' 分';
     renderAccounts(d.accounts || []);
     renderModelLocks(d.model_locks);
+    v3('afterOverview', d);
     // 到期卡片跟随首页统计同步刷新（用同一份响应里的按日批次，不额外发请求）。
     // 2 分钟内的实时明细最新且更全，保留；过期后由 state 快照接管，避免点过一次
     // 「检查」之后卡片永远停在那一刻的旧数据。
@@ -620,7 +593,7 @@ $('accBody').addEventListener('click', async ev => {
       await api('accounts/' + encodeURIComponent(u) + '/resume', { method: 'POST' });
       toast('已恢复选号', 'ok');
     } else if (a === 'tasks') {
-      openTasks(u);
+      if (v3('gotoTasks', u) === undefined) openTasks(u);
     } else if (a === 'remove') {
       const r = await api('accounts/' + encodeURIComponent(u) + '/remove', { method: 'POST' });
       toast(r.file_error ? '已移除（凭证文件删除失败：' + r.file_error + '）' : '已移除', 'ok');
@@ -630,7 +603,7 @@ $('accBody').addEventListener('click', async ev => {
 });
 
 $('btnCheckinAll').onclick = async () => {
-  try { await api('checkin_all', { method: 'POST' }); toast('全部签到已开始，结果见日志', 'ok'); }
+  try { await api('checkin_all', { method: 'POST' }); toast('全部签到已开始，结果见任务管理 → 运行历史', 'ok'); }
   catch (e) { toast(e.message, 'err'); }
 };
 $('btnKeepaliveAll').onclick = async () => {
@@ -698,7 +671,7 @@ function rateCell(m) {
 
 async function loadModels() {
   const tb = $('mdBody');
-  tb.innerHTML = '<tr><td colspan="7"><div class="empty">正在向上游查询…</div></td></tr>';
+  tb.innerHTML = '<tr><td colspan="9"><div class="empty">正在向上游查询…</div></td></tr>';
   try {
     // 探测、模型锁与最近请求都是本地可选增强：任一失败不影响模型目录本身。
     // 可用性标签不额外发推理请求，只用模型锁和最近真实请求结果合成。
@@ -713,7 +686,7 @@ async function loadModels() {
     mdLocks = Array.isArray(st.model_locks) ? st.model_locks : [];
     mdRecent = Array.isArray(rm.recent) ? rm.recent : [];
     if (!mdAll.length) {
-      tb.innerHTML = '<tr><td colspan="7"><div class="empty">上游未返回模型</div></td></tr>';
+      tb.innerHTML = '<tr><td colspan="9"><div class="empty">上游未返回模型</div></td></tr>';
       $('mdCount').textContent = '';
       $('mdNote').textContent = '上游未返回模型';
       return;
@@ -726,7 +699,7 @@ async function loadModels() {
     renderModels();
   } catch (e) {
     mdAll = [];
-    tb.innerHTML = '<tr><td colspan="7"><div class="empty">' + esc(e.message) + '</div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="9"><div class="empty">' + esc(e.message) + '</div></td></tr>';
     $('mdCount').textContent = '';
   }
 }
@@ -764,6 +737,8 @@ function mdMatch(m, f) {
   if (f.cap === 'vision' && !m.supports_images) return false;
   if (f.cap === 'reasoning' && !m.supports_reasoning) return false;
   if (f.cap === 'default' && !m.is_default) return false;
+  if (f.cap === 'enabled' && m.disabled) return false;
+  if (f.cap === 'disabled' && !m.disabled) return false;
   if (f.effort === 'off') {
     if (!m.can_disable_thinking) return false;
   } else if (f.effort && !(m.supported_efforts || []).includes(f.effort)) {
@@ -863,19 +838,26 @@ function mdRowHtml(m, pr) {
   if (m.supports_reasoning && !m.can_disable_thinking) caps.push('<span class="tag warn">思考常开</span>');
   const capHtml = caps.length ? '<div class="id" style="margin-top:2px">' + caps.join(' ') + '</div>' : '';
   const tip = m.description ? ' title="' + esc(m.description) + '"' : '';
-  return '<tr><td class="mark" aria-hidden="true"><i></i></td><td class="who"' + tip + '><div class="nm"><span class="mid">' + esc(m.id) + '</span>' + mdAvailabilityTag(m) + '</div><div class="id">' + esc(m.name || '') + '</div>' + capHtml + '</td>' +
+  const tr = (typeof mdTests === 'object' && mdTests) ? mdTests[m.id] : null;
+  const testLine = !tr ? '' : tr.running ? '<div class="mtest"><span class="dots">测试中</span></div>'
+    : '<div class="mtest ' + (tr.ok ? 'ok' : 'err') + '" title="' + esc(tr.ok ? (tr.reply || '') : (tr.error || '')) + '">' +
+      (tr.ok ? '✓ ' + tr.latency_ms + ' ms' + (tr.reply ? ' · ' + esc(tr.reply) : '') : '✗ ' + esc(tr.error || ('HTTP ' + tr.status))) + '</div>';
+  const toggle = '<td class="tog"><label class="switch inline-sw" title="' + (m.disabled ? '已停用：不出现在 /v1/models，调用返回 model_disabled' : '已启用') + '">' +
+    '<input type="checkbox" data-md-toggle="' + esc(m.id) + '"' + (m.disabled ? '' : ' checked') + '></label></td>';
+  const testCell = '<td class="acts"><div class="acts-in"><button class="xs" data-md-test="' + esc(m.id) + '">测试</button></div>' + testLine + '</td>';
+  return '<tr' + (m.disabled ? ' class="md-off"' : '') + '><td class="mark" aria-hidden="true"><i></i></td><td class="who"' + tip + '><div class="nm"><span class="mid">' + esc(m.id) + '</span>' + mdAvailabilityTag(m) + '</div><div class="id">' + esc(m.name || '') + '</div>' + capHtml + '</td>' +
     '<td class="num">' + rateCell(m) + '</td>' +
     '<td>' + (m.default_effort ? '<span class="tag ok">' + esc(m.default_effort) + '</span>' : '<span style="color:var(--ink-3)">—</span>') + '</td>' +
     '<td class="efs" style="white-space:normal">' + effs + '</td>' +
     '<td class="num">' + (m.context_length ? Math.round(m.context_length / 1000) + 'K' : '—') + '</td>' +
-    outCell(m, pr) + '</tr>';
+    outCell(m, pr) + toggle + testCell + '</tr>';
 }
 
 function renderModels() {
   const tb = $('mdBody');
   const list = mdSortList(mdAll.filter(m => mdMatch(m)));
   if (!list.length) {
-    tb.innerHTML = '<tr><td colspan="7"><div class="empty">没有符合当前筛选条件的模型</div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="9"><div class="empty">没有符合当前筛选条件的模型</div></td></tr>';
   } else {
     tb.innerHTML = list.map(m => mdRowHtml(m, mdProbeOf(m.id))).join('');
   }
@@ -924,6 +906,8 @@ async function loadLogs() {
   // 「最近 N 条」里根本不会有那些记录，必须让服务端按时间取。
   const rq = trangeQuery('reqRange', false);
   rq.set('limit', limit);
+  const keyF = ($('reqKey') && $('reqKey').value) || '';
+  if (keyF) rq.set('api_key', keyF);
   try {
     const [d, metrics, requestRows, credit] = await Promise.all([
       api('logs'),
@@ -1085,7 +1069,8 @@ function reqCreditCell(e) {
 /* renderRequestTable 渲染请求记录表。来源列是这一版的重点：IP 用等宽字体方便扫，
    UA 单行截断（完整值在 title 里，行本身用 requestLogText 作 tooltip）。 */
 function renderRequestTable() {
-  const list = reqEntries.filter(e => reqMatch(e));
+  const keySel = ($('reqKey') && $('reqKey').value) || '';
+  const list = reqEntries.filter(e => reqMatch(e) && (!keySel || (e && e.api_key_id) === keySel));
   const tb = $('reqBody');
   if (!tb) return;
   tb.innerHTML = list.map(e => {
@@ -1097,7 +1082,7 @@ function renderRequestTable() {
       '<td class="num">' + esc(when) + '</td>' +
       '<td>' + reqOutcomeTag(e) + '</td>' +
       '<td>' + esc(e && e.model || '—') + '</td>' +
-      '<td>' + esc(e && e.account || '—') + '</td>' +
+      '<td>' + esc(e && e.account || '—') + (e && e.api_key_name ? '<div class="muted" style="font-size:11.5px">🔑 ' + esc(e.api_key_name) + '</div>' : '') + '</td>' +
       '<td>' + (ip ? '<span class="clip ip" title="' + esc(ip) + '">' + esc(ip) + '</span>' : '<span class="muted">—</span>') + '</td>' +
       '<td>' + (ua ? '<span class="clip" title="' + esc(ua) + '">' + esc(ua) + '</span>' : '<span class="muted">—</span>') + '</td>' +
       '<td class="num">' + fmtMs(e && e.duration_ms) + '</td>' +
@@ -1188,7 +1173,12 @@ const CFG_MAP = {
   strategy_international: ['pool', 'strategy', 'international'],
   domestic_account_order: ['pool', 'account_order', 'domestic'],
   international_account_order: ['pool', 'account_order', 'international'],
-  listen: ['listen'], api_key: ['api_key'],
+  listen: ['listen'], api_key: ['api_key'], admin_key: ['admin_key'],
+  schedule_enabled: ['schedule', 'enabled'],
+  intl_daily_enabled: ['schedule', 'intl_daily_enabled'], intl_daily_hours: ['schedule', 'intl_daily_hours'],
+  intl_daily_web: ['schedule', 'intl_daily_web'], intl_daily_models: ['schedule', 'intl_daily_models'],
+  intl_daily_prompt: ['schedule', 'intl_daily_prompt'], travel_open_boxes: ['schedule', 'travel_open_boxes'],
+  blackcat_hours: ['schedule', 'blackcat_hours'], blackcat_enabled: ['schedule', 'blackcat_enabled'],
   package_detail_limit: ['panel', 'package_detail_limit'],
   checkin_hours: ['schedule', 'checkin_hours'], checkin_enabled: ['schedule', 'checkin_enabled'], growth_hours: ['schedule', 'growth_hours'], growth_enabled: ['schedule', 'growth_enabled'],
   travel_hours: ['schedule', 'travel_hours'], travel_enabled: ['schedule', 'travel_enabled'],
@@ -1226,7 +1216,7 @@ const CFG_MAP = {
  * 刻意不含 api_key：清空它 = 关闭整个鉴权，误触代价是网关变成无鉴权公开服务。
  * 该字段（以及提示文案"留空 = 不鉴权"与现状不符的问题）单独处理。
  */
-const CLEARABLE_CFG = new Set(['user_agent', 'prompt_file']);
+const CLEARABLE_CFG = new Set(['user_agent', 'prompt_file', 'admin_key']);
 
 function dig(obj, path) { return path.reduce((o, k) => (o == null ? undefined : o[k]), obj); }
 function put(obj, path, val) {
@@ -1264,7 +1254,7 @@ function collectConfig() {
     else {
       const raw = el.value.trim();
       // 覆盖型字段空串照发（见 CLEARABLE_CFG）；其余空 = 不下发。
-      if (name.endsWith('_account_order')) v = raw.split(/[,，\s]+/).filter(Boolean);
+      if (name.endsWith('_account_order') || name.endsWith('_models')) v = raw.split(/[,，\s]+/).filter(Boolean);
       else if (raw === '') v = CLEARABLE_CFG.has(name) ? '' : undefined;
       else if (name.endsWith('_hours')) v = raw.split(/[,，\s]+/).filter(Boolean).map(Number);
       else v = raw;
@@ -1305,6 +1295,12 @@ $('btnEye').onclick = () => {
   el.type = show ? 'text' : 'password';
   $('btnEye').textContent = show ? '隐藏' : '显示';
 };
+if ($('btnEyeAdmin')) $('btnEyeAdmin').onclick = () => {
+  const el = $('cfgAdminKey');
+  const show = el.type === 'password';
+  el.type = show ? 'text' : 'password';
+  $('btnEyeAdmin').textContent = show ? '隐藏' : '显示';
+};
 $('btnCfgReload').onclick = loadConfig;
 $('cfgForm').onsubmit = async ev => {
   ev.preventDefault();
@@ -1323,9 +1319,10 @@ $('cfgForm').onsubmit = async ev => {
     const r = await api('config', { method: 'POST', body: JSON.stringify(collectConfig()) });
     const n = (r.restart_required || []).length;
     toast(n ? '配置已保存，其中 ' + n + ' 项需重启进程生效' : '配置已保存并立即生效', 'ok');
-    // 密钥可能已改：本次会话沿用新值，避免下一次轮询被 401。
-    const k = $('cfgKey').value.trim();
+    // 管理密钥可能已改：本次会话沿用新值（admin_key 优先，空则回落 api_key），避免下一次轮询被 401。
+    const k = ($('cfgAdminKey') && $('cfgAdminKey').value.trim()) || $('cfgKey').value.trim();
     if (k) localStorage.setItem(LS_KEY, k);
+    v3('loadSchedule');
     loadConfig();
     loadOverview(true);
   } catch (e) { toast('保存失败：' + e.message, 'err'); }
@@ -1335,6 +1332,7 @@ $('cfgForm').onsubmit = async ev => {
 /* ── 添加账号 ─────────────────────────────────────────────────────── */
 function openAdd() {
   $('addVeil').classList.add('on');
+  if ($('addVeil').scrollIntoView) $('addVeil').scrollIntoView({ behavior: 'smooth', block: 'start' });
   // 重置到登录标签
   switchAddTab('login');
   $('addPick').hidden = false;
@@ -1347,8 +1345,9 @@ function openAdd() {
 }
 function switchAddTab(tab) {
   document.querySelectorAll('#addTabs .tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-  $('addTabLogin').hidden = tab !== 'login';
-  $('addTabImport').hidden = tab !== 'import';
+  // panel-v3：添加账号并入账号管理页，两栏（浏览器登录 / 导入）同时可见，不再按标签隐藏。
+  $('addTabLogin').hidden = false;
+  $('addTabImport').hidden = false;
 }
 document.querySelectorAll('#addTabs .tab').forEach(b => {
   b.onclick = () => switchAddTab(b.dataset.tab);
@@ -1425,16 +1424,17 @@ $('importFile').onchange = async () => {
 
 /* ── 顶部动作 ─────────────────────────────────────────────────────── */
 $('btnAdd').onclick = openAdd;
+/* 顶栏刷新：重新读取当前页数据（本地读，不打上游）。从上游刷新余额见「全部账号执行 → 刷新全部余额」。 */
 $('btnRefresh').onclick = async () => {
   const b = $('btnRefresh');
-  b.disabled = true; b.textContent = '刷新中…';
+  b.disabled = true;
   try {
-    await api('balance_all', { method: 'POST' });
     await loadOverview(true);
-    toast('余额已从上游刷新', 'ok');
-  } catch (e) { toast('刷新失败：' + e.message, 'err'); await loadOverview(true); }
-  finally { b.disabled = false; b.textContent = '刷新'; }
-  if (view === 'logs') loadLogs();
+    if (view === 'models') await loadModels();
+    else go(view);
+    toast('已刷新', 'ok');
+  } catch (e) { toast('刷新失败：' + e.message, 'err'); }
+  finally { b.disabled = false; }
 };
 
 /* ── 官方补偿（issue #189）─────────────────────────────────────────
@@ -1464,6 +1464,10 @@ function compPending(rows) {
     r.status.active && !r.status.claimed && (r.status.credit_num || 0) > 0);
 }
 
+// plainErr 上游错误常夹带整段 HTML 错误页（nginx 401/500）：去标签、压空白，只留可读文字。
+function plainErr(e) {
+  return String(e == null ? '' : e).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+}
 // compErrored 挑出「查询失败」的账号。
 // 单独拎出来，是因为它们**必须显形**：上游 5xx / token 过期时所有账号都会落到
 // 这里，若和「没有补偿」一起被过滤掉，卡片就会整块消失，用户看到的是「什么都没有」
@@ -1522,7 +1526,7 @@ function renderCompensation(d) {
   const errRows = failed.map(r =>
     '<div class="comp-row"><span>' + esc(r.nickname || String(r.uid).slice(0, 8)) + '</span>' +
     '<span class="tag bad">查询失败</span>' +
-    '<span class="tag mute">' + esc(String(r.error).slice(0, 120)) + '</span></div>'
+    '<span class="tag mute comp-err" title="' + esc(plainErr(r.error)) + '">' + esc(plainErr(r.error).slice(0, 90)) + '</span></div>'
   ).join('');
 
   $('compList').innerHTML = okRows + errRows;
@@ -1612,11 +1616,14 @@ if ($('btnCompClaimAll')) $('btnCompClaimAll').onclick = async () => {
 
 /* ── 轮询 ─────────────────────────────────────────────────────────── */
 function refreshVisible() {
-  if (view === 'accounts') { loadOverview(true); renderCachedCompensation(); }
+  if ($('keyVeil').classList.contains('on')) return; // 封面盖着：不轮询
+  if (view === 'accounts' || view === 'credits') { loadOverview(true); renderCachedCompensation(); }
   else if (view === 'logs') loadLogs();
-  else if (view === 'taskscenter') reattachQueueView();
+  else if (view === 'tasks') { reattachQueueView(); v3('pollTasks'); }
+  else if (view === 'schedule') v3('pollSchedule');
 }
 function start() {
+  v3('loadNotes');
   loadOverview(true);
   loadCompensation();                       // 补偿状态：首次进页面查一次（之后靠新鲜窗口）
   if (refTimer) clearInterval(refTimer);
@@ -3411,11 +3418,11 @@ if ($('btnPk')) $('btnPk').onclick = () => loadPackages(true);
    键取 uid 前 8 位——与 renderUsageDim 账号维度的 key 和积分扣除表的 uid 前缀同源，
    三个表格因此都能直接 join。展示层只替换文本并挂 .rm-ghost 虚体，账号标识本身
    仍由服务端下发，不写回后端；备注是纯展示层信息，不参与选号 / 计费 / 鉴权。 */
+/* panel-v3：备注改存服务端（/panel/api/notes，panel-store.json，重启不丢）。remarksCache 由
+   v3.js 的 v3_loadNotes 填充（键仍取 uid 前 8 位，与用量表的账号键同源）；旧版本机
+   localStorage（LS_REMARKS）里的备注在首次加载时一次性迁移到服务端。 */
 function remarksAll() {
-  if (remarksCache) return remarksCache;
-  try { remarksCache = JSON.parse(localStorage.getItem(LS_REMARKS)) || {}; }
-  catch (e) { remarksCache = {}; }
-  return remarksCache;
+  return remarksCache || {};
 }
 function remarkKey(uid) { return String(uid == null ? '' : uid).slice(0, 8); }
 function remarkOf(uid) {
@@ -3429,19 +3436,14 @@ function remarkName(uid, nameHtml) {
 }
 function storeRemarks(map) {
   remarksCache = map;
-  try { localStorage.setItem(LS_REMARKS, JSON.stringify(map)); } catch (e) {}
 }
 
 /* 编辑器的行来自 overview 缓存（账号池加载过就有），另外补上「已有备注但当前列表里
    没有」的键，避免账号被移除后备注看起来凭空消失。 */
 function remarkFormRows() {
-  const rows = ((overviewData && overviewData.accounts) || [])
-    .map(s => ({ uid: remarkKey(s.uid), who: s.nickname || remarkKey(s.uid) }))
+  return ((overviewData && overviewData.accounts) || [])
+    .map(s => ({ uid: s.uid, who: s.nickname || remarkKey(s.uid) }))
     .filter(r => r.uid);
-  for (const k of Object.keys(remarksAll())) {
-    if (!rows.some(r => r.uid === k)) rows.push({ uid: k, who: k });
-  }
-  return rows;
 }
 function renderRemarkBody() {
   const box = $('remarkBody');
@@ -3449,30 +3451,35 @@ function renderRemarkBody() {
   const rows = remarkFormRows();
   box.innerHTML = rows.length
     ? rows.map(r => '<div class="rm-row"><span class="rm-who" title="' + esc(r.who) + '">' + esc(r.who) + '</span>' +
-        '<input type="text" data-uid="' + esc(r.uid) + '" value="' + esc(remarksAll()[r.uid] || '') + '" placeholder="备注（留空即清除）" maxlength="24"></div>').join('')
-    : '<div class="empty">暂无账号：先在「账号池」加载一次账号列表。</div>';
+        '<input type="text" data-uid="' + esc(r.uid) + '" value="' + esc(remarkOf(r.uid)) + '" placeholder="备注（留空即清除）" maxlength="60"></div>').join('')
+    : '<div class="empty">暂无账号：先在「账号管理」加载一次账号列表。</div>';
 }
 function openRemarks() {
   renderRemarkBody();
   if ($('remarkVeil')) $('remarkVeil').classList.add('on');
 }
 function closeRemarks() { if ($('remarkVeil')) $('remarkVeil').classList.remove('on'); }
-function saveRemarkForm() {
-  const map = {};
+async function saveRemarkForm() {
+  const changes = [];
   document.querySelectorAll('#remarkBody input[data-uid]').forEach(inp => {
-    const v = inp.value.trim();
-    if (v) map[inp.getAttribute('data-uid')] = v;
+    const uid = inp.getAttribute('data-uid'), v = inp.value.trim();
+    if (v !== remarkOf(uid)) changes.push([uid, v]);
   });
-  storeRemarks(map);
-  closeRemarks();
-  // 备注只影响本机展示：重渲染当前视图即可，无需后端参与。
-  if (view === 'accounts') loadOverview(true);
-  else if (view === 'usage' && usageData) renderUsage(usageData);
-  toast('备注已保存（仅本机浏览器）');
+  try {
+    for (const [uid, note] of changes) {
+      await api('accounts/' + encodeURIComponent(uid) + '/note', { method: 'POST', body: JSON.stringify({ note }) });
+    }
+    await v3('loadNotes');
+    closeRemarks();
+    v3('rerender');
+    toast(changes.length ? '备注已保存（服务端）' : '没有改动', 'ok');
+  } catch (e) { toast('保存失败：' + e.message, 'err'); }
 }
 if ($('btnRemarks')) $('btnRemarks').onclick = openRemarks;
 if ($('btnRemarkClose')) $('btnRemarkClose').onclick = closeRemarks;
-if ($('btnRemarkClear')) $('btnRemarkClear').onclick = () => { storeRemarks({}); renderRemarkBody(); };
+if ($('btnRemarkClear')) $('btnRemarkClear').onclick = () => {
+  document.querySelectorAll('#remarkBody input[data-uid]').forEach(inp => { inp.value = ''; });
+};
 if ($('btnRemarkSave')) $('btnRemarkSave').onclick = saveRemarkForm;
 
 /* ══ 首页「积分到期提醒」折叠（选择记在本机，默认展开）═════════════════════

@@ -24,7 +24,7 @@ func TestAppJSSyntax(t *testing.T) {
 	if err != nil {
 		t.Skip("node not available; skipping JS syntax check")
 	}
-	for _, name := range []string{"app.js", "mobile.js"} {
+	for _, name := range []string{"app.js", "v3.js", "mobile.js"} {
 		path, err := filepath.Abs(name)
 		if err != nil {
 			t.Fatal(err)
@@ -103,6 +103,8 @@ sandbox.window = sandbox; sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
 try {
   vm.runInContext(src, sandbox, { filename: 'app.js' });
+  // panel-v3：v3.js 在 app.js 之后加载，共享同一全局环境（顶层 let/const 与函数声明）。
+  if (process.argv[3]) vm.runInContext(fs.readFileSync(process.argv[3], 'utf8'), sandbox, { filename: 'v3.js' });
   console.log('SMOKE OK');
   process.exit(0);
 } catch (e) {
@@ -118,8 +120,9 @@ try {
 		t.Fatal(err)
 	}
 	hf.Close()
-	for _, hash := range []string{"#taskscenter", "#accounts", "#usage", "#models", "#config", "#logs", "#packages"} {
-		cmd := exec.Command(node, hf.Name(), "app.js")
+	for _, hash := range []string{"#taskscenter", "#accounts", "#usage", "#models", "#config", "#logs", "#packages",
+		"#credits", "#keys", "#tasks", "#schedule"} {
+		cmd := exec.Command(node, hf.Name(), "app.js", "v3.js")
 		cmd.Dir = "." // 测试工作目录 = internal/panel
 		cmd.Env = append(os.Environ(), "SMOKE_HASH="+hash)
 		out, err := cmd.CombinedOutput()

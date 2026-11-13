@@ -2,49 +2,52 @@
 <html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>WorkBuddy2API · 控制台</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>WorkBuddy2API</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%234a6484'/%3E%3Cpath d='M4.5 7.5 7.4 17l4.6-7.2 4.6 7.2 2.9-9.5' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
-/* ── 设计令牌 ───────────────────────────────────────────────────────────
-   安静的工具型界面：中性暖灰底 + 单一克制强调色（青绿，只给进度/图表/焦点/开关）。
-   主按钮用墨色（浅色下近黑、深色下近白），不用彩色。状态色降饱和、只配小圆点与文字。
-   无渐变光晕、无毛玻璃、无脉冲动画。间距走 4/8 栅格；数字一律 tabular-nums。 */
+/* ── 设计令牌（panel-v3）────────────────────────────────────────────
+   参考 WorkBuddy-plugins 管理页：中性冷灰底 + 单一石板蓝强调色（只给进度 / 图表 / 焦点 /
+   开关 / 选中态），主按钮用墨色。浅色与深色两套，跟随系统，顶栏可切换。 */
 :root {
-  --bg: #141413; --surface: #1b1b1a; --surface-2: #232321; --raise: #252523;
-  --line: #2f2e2c; --line-soft: #272725;
-  --ink: #ecebe8; --ink-2: #a8a6a1; --ink-3: #7a7873;
-  --accent: #62ad9b; --accent-soft: rgba(98,173,155,.13); --accent-line: rgba(98,173,155,.4);
-  --primary: #ecebe8; --primary-hover: #ffffff; --primary-ink: #161615;
-  --ok: #67b08a; --ok-soft: rgba(103,176,138,.12);
-  --warn: #d2a24f; --warn-soft: rgba(210,162,79,.12);
-  --bad: #e06c61; --bad-soft: rgba(224,108,97,.12);
-  --c1: #62ad9b; --c2: #5f5c56;
+  --bg: #111214; --surface: #18191c; --surface-2: #202125; --raise: #1d1e22;
+  --line: #2b2d32; --line-soft: #24262a;
+  --ink: #e8e9ec; --ink-2: #a5a9b1; --ink-3: #767a83;
+  --accent: #8fa8c6; --accent-soft: rgba(143,168,198,.14); --accent-line: rgba(143,168,198,.45);
+  --primary: #e8e9ec; --primary-hover: #ffffff; --primary-ink: #111214;
+  --ok: #6fb38f; --ok-soft: rgba(111,179,143,.13);
+  --warn: #d6a75c; --warn-soft: rgba(214,167,92,.13);
+  --bad: #e4796d; --bad-soft: rgba(228,121,109,.13);
+  --c1: #8fa8c6; --c2: #4c5466;
   --hover: rgba(255,255,255,.03); --hover-2: rgba(255,255,255,.06);
-  --shadow: none;
-  --shadow-lg: 0 16px 40px -12px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.02);
-  --log-bg: #191918;
-  --r-lg: 10px; --r-md: 8px; --r-sm: 6px;
+  --shadow: 0 0 0 1px rgba(255,255,255,.012);
+  --shadow-lg: 0 18px 44px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.03);
+  --log-bg: #141517;
+  --r-lg: 12px; --r-md: 9px; --r-sm: 7px;
   --mono: ui-monospace, "SF Mono", "SFMono-Regular", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif;
   --ease: cubic-bezier(.2,.7,.2,1);
+  --topbar-h: 60px;
   color-scheme: dark;
 }
 [data-theme="light"] {
-  --bg: #f7f7f5; --surface: #ffffff; --surface-2: #f3f3f1; --raise: #ffffff;
-  --line: #e4e3df; --line-soft: #eeede9;
-  --ink: #1c1b19; --ink-2: #5a5853; --ink-3: #8d8a84;
-  --accent: #2c7a68; --accent-soft: rgba(44,122,104,.09); --accent-line: rgba(44,122,104,.35);
-  --primary: #1c1b19; --primary-hover: #3a3936; --primary-ink: #ffffff;
-  --ok: #2f8257; --ok-soft: rgba(47,130,87,.09);
-  --warn: #a8690f; --warn-soft: rgba(168,105,15,.09);
-  --bad: #c0443a; --bad-soft: rgba(192,68,58,.08);
-  --c1: #2c7a68; --c2: #c9c4b9;
-  --hover: rgba(28,27,25,.025); --hover-2: rgba(28,27,25,.05);
-  --shadow: 0 1px 2px rgba(28,27,25,.04);
-  --shadow-lg: 0 16px 40px -12px rgba(28,27,25,.22), 0 2px 6px rgba(28,27,25,.06);
-  --log-bg: #fbfbfa;
+  --bg: #f5f6f7; --surface: #ffffff; --surface-2: #f1f2f4; --raise: #ffffff;
+  --line: #e2e4e8; --line-soft: #ecedf0;
+  --ink: #1b1d21; --ink-2: #565b64; --ink-3: #8a8f98;
+  --accent: #4a6484; --accent-soft: rgba(74,100,132,.10); --accent-line: rgba(74,100,132,.38);
+  --primary: #1d1e20; --primary-hover: #3a3c40; --primary-ink: #ffffff;
+  --ok: #2f8257; --ok-soft: rgba(47,130,87,.10);
+  --warn: #9a6a1f; --warn-soft: rgba(154,106,31,.10);
+  --bad: #b9493d; --bad-soft: rgba(185,73,61,.09);
+  --c1: #4a6484; --c2: #c3cad4;
+  --hover: rgba(27,29,33,.025); --hover-2: rgba(27,29,33,.05);
+  --shadow: 0 1px 2px rgba(27,29,33,.05);
+  --shadow-lg: 0 16px 40px -12px rgba(27,29,33,.22), 0 2px 6px rgba(27,29,33,.06);
+  --log-bg: #fafbfc;
   color-scheme: light;
 }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 [hidden] { display: none !important; }
 html, body { height: 100%; }
@@ -73,35 +76,6 @@ b { font-weight: 600; }
 @keyframes popIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes shimmer { 0% { background-position: -460px 0; } 100% { background-position: 460px 0; } }
 
-/* ── 壳层：左侧导航 + 主区 ─────────────────────────────────────────── */
-.shell { display: grid; grid-template-columns: 216px minmax(0, 1fr); min-height: 100vh; }
-.nav {
-  background: var(--bg); border-right: 1px solid var(--line);
-  display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; z-index: 30;
-}
-.brand { display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 20px; margin-bottom: 8px; }
-.brand .logo { width: 24px; height: 24px; flex: none; color: var(--ink); }
-.brand .logo svg { display: block; width: 100%; height: 100%; }
-.brand .logo path { stroke: var(--bg); }
-.brand .logo circle { fill: var(--bg); }
-.brand .txt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.brand .name { font-weight: 600; font-size: 13.5px; letter-spacing: -.01em; line-height: 1.2; white-space: nowrap; }
-.brand .sub { color: var(--ink-3); font: 10.5px/1.2 var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nav .sect { padding: 4px 20px 6px; font-size: 11px; font-weight: 500; color: var(--ink-3); }
-.nav ul { list-style: none; padding: 0 8px 8px; flex: 1; }
-.nav a {
-  position: relative; display: flex; align-items: center; gap: 10px; padding: 0 12px; height: 32px; margin-bottom: 1px;
-  color: var(--ink-2); text-decoration: none; border-radius: var(--r-sm); font-size: 13px; font-weight: 500;
-  transition: background .12s, color .12s;
-}
-.nav a:hover { background: var(--hover-2); color: var(--ink); }
-.nav a.on { color: var(--ink); background: var(--hover-2); font-weight: 600; }
-.nav a svg { width: 16px; height: 16px; flex: none; opacity: .7; }
-.nav a.on svg { opacity: 1; }
-.nav .sig { margin: 0 8px 12px; padding: 10px 12px; font-size: 12px; color: var(--ink-3); border-top: 1px solid var(--line-soft); }
-.nav .sig .row { display: flex; align-items: center; gap: 8px; }
-.nav .sig .row:first-child { color: var(--ink-2); font-weight: 500; }
-.nav .sig .row + .row { font-family: var(--mono); font-size: 11px; padding-left: 14px; }
 
 /* 日志频道筛选 chips */
 .chips { display: inline-flex; gap: 2px; align-items: center; padding: 2px; border-radius: var(--r-sm); background: var(--surface-2); }
@@ -165,19 +139,6 @@ b { font-weight: 600; }
 .pulse.bad { background: var(--bad); }
 .pulse.warn { background: var(--warn); }
 
-.main { min-width: 0; display: flex; flex-direction: column; }
-.topbar {
-  display: flex; align-items: center; gap: 8px; padding: 0 32px; height: 56px;
-  border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; background: var(--bg);
-}
-.topbar h2 { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
-.topbar .sep { color: var(--line); font-size: 15px; margin: 0 2px; }
-.topbar .meta { color: var(--ink-3); font-size: 12.5px; white-space: nowrap; }
-.topbar .grow { flex: 1; }
-.topbar button.icon.nav-btn { display: none; }
-.topbar button.icon { width: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
-.view { padding: 24px 32px 64px; max-width: 1480px; margin: 0 auto; width: 100%; animation: fadeIn .18s ease-out; }
-.view[hidden] { display: none; }
 
 /* ── 控件 ─────────────────────────────────────────────────────────── */
 button {
@@ -509,11 +470,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
 .tst.ok::before { background: var(--ok); }
 .tst.err::before { background: var(--bad); }
 
-@media (max-width: 760px) {
-  .shell { grid-template-columns: 1fr; }
-  .nav { position: static; height: auto; flex-direction: row; align-items: center; overflow-x: auto; }
-  .nav ul { display: flex; padding: 8px; } .nav .sig { border: none; }
-}
+
 
 /* ── 用量视图 ───────────────────────────────────────────────────── */
 .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); background: var(--surface); border-bottom: 1px solid var(--line-soft); overflow: hidden; }
@@ -668,143 +625,420 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
 .rm-row { display: flex; align-items: center; gap: 12px; }
 .rm-row .rm-who { flex: 0 0 168px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); font-size: 12.5px; }
 .rm-row input { flex: 1; }
+
+/* ══ panel-v3 壳层：顶栏（左品牌 · 中导航 · 右状态）══════════════════════ */
+body { min-height: 100vh; }
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+.topbar {
+  position: sticky; top: 0; z-index: 40; height: var(--topbar-h);
+  display: grid; grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr); align-items: center; gap: 16px;
+  padding: 0 24px; border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
+  backdrop-filter: saturate(1.5) blur(14px); -webkit-backdrop-filter: saturate(1.5) blur(14px);
+}
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; text-decoration: none; color: var(--ink); }
+.brand .logo { width: 28px; height: 28px; flex: none; border-radius: 8px; display: grid; place-items: center;
+  background: var(--primary); color: var(--primary-ink); box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+.brand .logo svg { width: 18px; height: 18px; display: block; }
+.brand .ver { font: 500 11px var(--mono); color: var(--ink-3); padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line-soft); }
+.brand .ver:empty { display: none; }
+.brand .name { font-weight: 650; font-size: 15px; letter-spacing: -.015em; white-space: nowrap; }
+.tnav { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 11px;
+  background: var(--surface-2); border: 1px solid var(--line-soft); overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+.tnav::-webkit-scrollbar { display: none; }
+.tnav a { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 13px; border-radius: 8px;
+  color: var(--ink-2); text-decoration: none; font-size: 13px; font-weight: 500; white-space: nowrap;
+  transition: background .12s, color .12s, box-shadow .12s; }
+.tnav a svg { width: 15px; height: 15px; flex: none; opacity: .75; }
+.tnav a:hover { color: var(--ink); }
+.tnav a.on { background: var(--surface); color: var(--ink); font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0,0,0,.10), 0 0 0 1px var(--line) inset; }
+.tnav a.on svg { opacity: 1; color: var(--accent); }
+.tright { display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
+.status { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 11px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); font-size: 12px; white-space: nowrap; }
+.status .dot-sep { color: var(--ink-3); }
+.tright button.icon { width: 32px; height: 32px; padding: 0; border-radius: 8px; }
+.tright button.icon svg { width: 16px; height: 16px; }
+
+.pagehead { display: flex; align-items: baseline; gap: 10px; padding: 22px 32px 0; max-width: 1480px; margin: 0 auto; width: 100%; }
+.pagehead h2 { font-size: 20px; font-weight: 650; letter-spacing: -.02em; }
+.pagehead .meta { color: var(--ink-3); font-size: 12.5px; }
+.view { padding: 18px 32px 72px; max-width: 1480px; margin: 0 auto; width: 100%; animation: fadeIn .18s ease-out; }
+.view[hidden] { display: none; }
+.stats { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+.stat.wide { grid-column: span 2; }
+@media (max-width: 1240px) { .stats { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); } }
+
+/* 工具条（搜索 + 筛选 + 动作） */
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.toolbar .grow { flex: 1; }
+.toolbar input[type=search] { width: 260px; max-width: 100%; height: 32px; padding-left: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.5'/%3E%3Cpath d='m10.5 10.5 3 3'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: 10px center; }
+.toolbar select { width: auto; height: 32px; }
+.toolbar .note { color: var(--ink-3); font-size: 12px; }
+.seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--line-soft); }
+.seg button { height: 28px; padding: 0 12px; border: 0; background: transparent; box-shadow: none; color: var(--ink-3); border-radius: 7px; font-size: 12.5px; }
+.seg button:hover:not(:disabled) { background: transparent; color: var(--ink); }
+.seg button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 0 0 1px var(--line) inset; }
+
+/* ── 封面（登录）──────────────────────────────────────────────────── */
+.cover { position: fixed; inset: 0; z-index: 100; display: none; align-items: center; justify-content: center; padding: 24px;
+  background:
+    radial-gradient(1200px 600px at 12% -10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 60%),
+    radial-gradient(900px 520px at 110% 110%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
+    var(--bg); }
+.cover.on { display: flex; animation: fadeIn .2s ease-out; }
+.cover-card { width: 400px; max-width: 100%; padding: 36px 32px 28px; border-radius: 18px; background: var(--surface);
+  border: 1px solid var(--line); box-shadow: var(--shadow-lg); position: relative; overflow: hidden; }
+.cover-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: .8; }
+.cover-logo { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; margin-bottom: 18px;
+  background: var(--primary); color: var(--primary-ink); box-shadow: 0 8px 22px -8px rgba(0,0,0,.45); }
+.cover-logo svg { width: 30px; height: 30px; }
+.cover h1 { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.cover .lead { color: var(--ink-3); font-size: 13px; margin: 6px 0 22px; line-height: 1.6; }
+.cover label.fld { margin-bottom: 12px; }
+.cover input { height: 40px; font-size: 14px; border-radius: 10px; }
+.cover .go { width: 100%; height: 40px; border-radius: 10px; font-size: 14px; margin-top: 4px; }
+.cover .err { color: var(--bad); font-size: 12.5px; margin-top: 10px; }
+.cover .foot { display: flex; align-items: center; gap: 8px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line-soft);
+  color: var(--ink-3); font-size: 12px; }
+.cover .foot .grow { flex: 1; }
+.cover .foot button { height: 28px; }
+.app.locked { filter: blur(6px); pointer-events: none; user-select: none; }
+
+/* ── 账号卡片 ─────────────────────────────────────────────────────── */
+.acards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.acard { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 14px 16px 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow);
+  transition: border-color .15s, box-shadow .15s, transform .15s; }
+.acard:hover { border-color: color-mix(in srgb, var(--ink-3) 40%, var(--line)); box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+.acard.off { opacity: .78; }
+.acard .top { display: flex; align-items: flex-start; gap: 10px; }
+.acard .avatar { width: 36px; height: 36px; border-radius: 10px; flex: none; display: grid; place-items: center;
+  font-weight: 700; font-size: 15px; color: var(--accent); background: var(--accent-soft); }
+.acard .ident { min-width: 0; flex: 1; }
+.acard .nm { display: flex; align-items: center; gap: 6px; font-weight: 650; font-size: 14.5px; letter-spacing: -.01em; min-width: 0; }
+.acard .nm .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acard .nm .realm-tag { margin-left: 0; flex: none; }
+.acard .uid { font: 11px var(--mono); color: var(--ink-3); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acard .st { flex: none; text-align: right; }
+.remark { display: flex; align-items: center; gap: 4px; margin-top: 3px; min-height: 20px; font-size: 12.5px; color: var(--ink-2); min-width: 0; }
+.remark .rt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.remark .rt.empty-r { color: var(--ink-3); font-style: italic; }
+.remark .pen { width: 22px; height: 22px; padding: 0; border: 0; background: transparent; box-shadow: none; color: var(--ink-3); flex: none; border-radius: 5px; }
+.remark .pen:hover:not(:disabled) { color: var(--ink); background: var(--hover-2); }
+.remark .pen svg { width: 13px; height: 13px; }
+.remark input { height: 26px; font-size: 12.5px; padding: 0 8px; flex: 1; min-width: 0; }
+.remark .ok, .remark .no { height: 26px; padding: 0 8px; font-size: 12px; }
+.acard .credit { margin-top: 12px; }
+.acard .credit .row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.acard .credit .n { font-size: 18px; font-weight: 650; letter-spacing: -.02em; }
+.acard .credit .n .of { font-size: 12px; color: var(--ink-3); font-weight: 400; }
+.acard .credit .lb { font-size: 12px; color: var(--ink-3); }
+.acard .credit .bar { max-width: none; height: 5px; margin-top: 7px; border-radius: 4px; }
+.acard.cool .credit .bar i { background: var(--warn); }
+.acard.off .credit .bar i { background: var(--ink-3); }
+.acard .kv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; padding: 10px 0 0; border-top: 1px dashed var(--line); }
+.acard .kv > div { min-width: 0; }
+.acard .kv .k { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+.acard .kv .v { font-size: 13px; font-weight: 500; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acard .reason { font-size: 12px; color: var(--ink-3); margin-top: 8px; line-height: 1.5; }
+.acard .rate-limits { margin-top: 8px; max-width: none; min-width: 0; }
+.acard .acts { justify-content: flex-start; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 12px; }
+.acard .acts-wrap { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.acard .acts-wrap .acts-in { flex-wrap: wrap; justify-content: flex-start; }
+.acard .acts-wrap details.menu { margin-left: auto; }
+.cards-empty { grid-column: 1 / -1; }
+
+/* 添加账号（并入账号管理页的内嵌卡片） */
+#addVeil { display: none; }
+#addVeil.on { display: block; animation: popIn .16s var(--ease); }
+#addVeil .addbody { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 0; }
+#addVeil .addcol { padding: 16px 20px; min-width: 0; }
+#addVeil .addcol + .addcol { border-left: 1px solid var(--line-soft); }
+#addVeil .addcol h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+#addVeil .addcol h4 .n { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font-size: 11.5px;
+  background: var(--accent-soft); color: var(--accent); }
+#addVeil .addfoot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+#addVeil .tabs { display: none; }
+
+/* ── 折叠行（积分管理 / 任务管理）────────────────────────────────── */
+.xrows { display: flex; flex-direction: column; }
+.xrow { border-bottom: 1px solid var(--line-soft); }
+.xrow:last-child { border-bottom: 0; }
+.xhead { display: grid; grid-template-columns: 18px minmax(180px, 1.4fr) minmax(0, 2.6fr) auto; align-items: center; gap: 14px;
+  padding: 12px 20px; cursor: pointer; user-select: none; transition: background .12s; }
+.xhead:hover { background: var(--hover); }
+.xhead .chev { width: 14px; height: 14px; color: var(--ink-3); transition: transform .18s var(--ease); }
+.xrow.open .xhead .chev { transform: rotate(90deg); color: var(--ink); }
+.xhead .who { max-width: none; min-width: 0; }
+.xhead .who .nm { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.xhead .who .rmk { font-size: 12px; color: var(--ink-2); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xhead .who .rmk:empty { display: none; }
+.xhead .mid { display: flex; align-items: center; gap: 16px; min-width: 0; flex-wrap: wrap; }
+.xhead .mid .m { display: flex; flex-direction: column; min-width: 0; }
+.xhead .mid .m .k { font-size: 11.5px; color: var(--ink-3); }
+.xhead .mid .m .v { font-size: 13px; font-weight: 500; white-space: nowrap; }
+.xhead .mid .meter { flex: 1; min-width: 120px; max-width: 280px; }
+.xhead .mid .meter .bar { max-width: none; height: 5px; margin-top: 6px; }
+.xhead .right { display: flex; align-items: center; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.xhead .mid .m:not(.meter) { flex: 0 0 auto; min-width: 76px; }
+#tkRows .xhead { grid-template-columns: 18px minmax(180px, 1fr) minmax(0, 3fr) 132px; }
+#kuRows .xhead, #runRows .xhead { grid-template-columns: 18px minmax(200px, 1.2fr) minmax(0, 2.8fr) 0; }
+#kuRows .xhead .mid .meter { max-width: 320px; }
+.kname .pen { width: 22px; height: 22px; padding: 0; border: 0; background: transparent; box-shadow: none; color: var(--ink-3); flex: none; border-radius: 5px; }
+.kname .pen:hover:not(:disabled) { color: var(--ink); background: var(--hover-2); }
+.kname .pen svg { width: 13px; height: 13px; }
+.sw-cell { display: inline-flex; align-items: center; gap: 8px; }
+.sw-cell .sw-l { font-size: 12.5px; color: var(--ink-2); }
+.sw-cell .sw-l.off { color: var(--ink-3); }
+/* 积分行：列宽固定，企业版（无签到按钮）与普通账号的各列上下对齐 */
+#crRows .xhead { grid-template-columns: 18px minmax(180px, 1.3fr) minmax(0, 2.7fr) 148px; }
+#crRows .xhead .mid { display: grid; grid-template-columns: minmax(140px, 300px) 64px 104px 72px; gap: 20px; align-items: center; }
+#crRows .xhead .mid .meter { max-width: none; }
+.xbody { display: none; padding: 4px 20px 18px 52px; }
+.xrow.open .xbody { display: block; animation: fadeIn .16s ease-out; }
+.sub-h { font-size: 12px; font-weight: 600; color: var(--ink-2); margin: 14px 0 8px; display: flex; align-items: center; gap: 8px; }
+.xbody .sub-h:first-child { margin-top: 6px; }
+.xbody .sub-h .grow { flex: 1; }
+.xbody table.acc { min-width: 560px; border: 1px solid var(--line-soft); border-radius: var(--r-md); }
+.xbody .tbl-wrap { border-radius: var(--r-md); }
+.lastbadges { display: flex; gap: 4px; flex-wrap: wrap; }
+.lb-chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 11.5px;
+  background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line-soft); white-space: nowrap; }
+.lb-chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); }
+.lb-chip.ok::before { background: var(--ok); } .lb-chip.bad::before { background: var(--bad); } .lb-chip.skip::before { background: var(--ink-3); opacity: .6; }
+.jobbar { display: flex; gap: 6px; flex-wrap: wrap; }
+.comp-grid { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.comp-src { display: flex; flex-direction: column; gap: 6px; }
+.comp-src .r { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 12.5px; }
+.comp-src .r i { width: 8px; height: 8px; border-radius: 2px; }
+.comp-src .r span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.comp-src .r b { font-weight: 500; }
+.mixbar { display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; background: var(--line-soft); margin-bottom: 10px; }
+.mixbar i { display: block; height: 100%; }
+.rec-list { display: flex; flex-direction: column; }
+.rec { display: grid; grid-template-columns: 112px 96px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 6px 0; font-size: 12.5px;
+  border-bottom: 1px dashed var(--line-soft); }
+.rec:last-child { border-bottom: 0; }
+.rec .t { color: var(--ink-3); font-size: 12px; white-space: nowrap; }
+.rec .j { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec .m { color: var(--ink-2); min-width: 0; overflow-wrap: anywhere; }
+.rec .c { color: var(--ok); white-space: nowrap; font-weight: 500; }
+.muted-pad { padding: 14px 0; color: var(--ink-3); font-size: 12.5px; }
+
+/* ── 密钥管理 ─────────────────────────────────────────────────────── */
+.keyform { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.keyform input { width: 260px; max-width: 100%; }
+.kname { display: flex; align-items: center; gap: 4px; min-width: 0; font-weight: 500; }
+.kname .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kdisp { font: 12px var(--mono); color: var(--ink-2); }
+.secret { display: flex; align-items: center; gap: 8px; padding: 12px; border-radius: var(--r-md); background: var(--surface-2);
+  border: 1px solid var(--line-soft); font: 13px/1.5 var(--mono); word-break: break-all; user-select: all; }
+.callout { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-md); font-size: 12.5px; line-height: 1.6;
+  background: var(--accent-soft); color: var(--ink-2); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); }
+.callout.warn { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 25%, transparent); }
+.callout b { color: var(--ink); }
+.callout code { white-space: nowrap; }
+.info-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.info-grid .it { padding: 12px 14px; border: 1px solid var(--line-soft); border-radius: var(--r-md); background: var(--surface-2); min-width: 0; }
+.info-grid .it .k { font-size: 12px; color: var(--ink-3); }
+.info-grid .it .v { font-size: 14px; font-weight: 600; margin-top: 3px; overflow-wrap: anywhere; }
+.info-grid .it .s { font-size: 12px; color: var(--ink-3); margin-top: 3px; }
+
+/* ── 模型管理：启停 + 测试 ─────────────────────────────────────────── */
+.acc.md td.tog { width: 1px; white-space: nowrap; }
+.acc.md tr.md-off .who .nm .mid { text-decoration: line-through; color: var(--ink-3); }
+.mtest { font-size: 12px; color: var(--ink-3); margin-top: 3px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mtest.ok { color: var(--ok); } .mtest.err { color: var(--bad); }
+label.switch.inline-sw { display: inline-flex; padding: 0; }
+
+/* ── 调度管理 ─────────────────────────────────────────────────────── */
+.master { display: flex; align-items: center; gap: 16px; padding: 16px 20px; }
+.master .ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); flex: none; }
+.master .ic svg { width: 22px; height: 22px; }
+.master .tx { flex: 1; min-width: 0; }
+.master .tx .t { font-weight: 650; font-size: 14px; }
+.master .tx .d { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+.master.off .ic { background: var(--warn-soft); color: var(--warn); }
+.sched-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.sjob { border: 1px solid var(--line-soft); border-radius: var(--r-md); padding: 12px 14px; background: var(--surface-2); min-width: 0; }
+.sjob .switch { padding: 0 0 6px; }
+.sjob label.fld { margin-bottom: 4px; }
+.sjob .hint { margin-top: 4px; }
+.sjob .nx { font-size: 11.5px; color: var(--ink-3); margin-top: 6px; }
+.sjob.wide { grid-column: 1 / -1; }
+.sjob-fields { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 1.3fr); gap: 0 14px; align-items: end; }
+.sjob-fields .sjob-inline { height: 32px; margin-bottom: 4px; padding: 0 2px; }
+@media (max-width: 1100px) { .sjob-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.pad > .hint.block { margin: -2px 0 16px; }
+.nextlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.nextlist .it { display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: var(--r-sm); background: var(--surface-2); font-size: 12.5px; }
+.nextlist .it b { font-weight: 500; }
+.nextlist .it span { color: var(--ink-3); white-space: nowrap; }
+
+@media (max-width: 1100px) {
+  .topbar { grid-template-columns: auto minmax(0, 1fr) auto; padding: 0 16px; }
+  .brand .name { display: none; }
+  .tnav { justify-self: center; }
+  .status .dot-sep, .status #navRedis { display: none; }
+}
+@media (max-width: 900px) {
+  #addVeil .addbody { grid-template-columns: 1fr; }
+  #addVeil .addcol + .addcol { border-left: 0; border-top: 1px solid var(--line-soft); }
+  .comp-grid { grid-template-columns: 1fr; }
+  .info-grid { grid-template-columns: 1fr; }
+}
+
 </style>
-<!-- 移动端适配：独立文件，必须在主 <style> 之后（@media 覆盖依赖层叠顺序） -->
 <link rel="stylesheet" href="mobile.css">
 </head>
 <body>
-<div class="shell">
-  <nav class="nav" id="navDrawer">
-    <div class="brand">
-      <span class="logo" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none">
-          <rect width="24" height="24" rx="6" fill="currentColor"/>
-          <path d="M6 8.2 8.4 16l3.6-5.8 3.6 5.8L18 8.2" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </span>
-      <div class="txt">
-        <div class="name">WorkBuddy2API</div>
-        <div class="sub" id="navSub">控制台</div>
-      </div>
+<!-- 登录封面：服务端对全部 /panel/api/* 强制校验管理密钥（admin_key，未设置时回落 api_key）。 -->
+<div class="cover" id="keyVeil" data-lock="1">
+  <div class="cover-card">
+    <div class="cover-logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7.5 7.4 17l4.6-7.2 4.6 7.2 2.9-9.5"/></svg>
     </div>
-    <div class="sect">工作台</div>
-    <ul>
-      <li><a href="#accounts" data-view="accounts" class="on">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="5.5" r="2.6"/><path d="M2.8 13.5c.6-2.6 2.7-4 5.2-4s4.6 1.4 5.2 4"/></svg>
-        账号池</a></li>
-      <li><a href="#usage" data-view="usage">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 13.5h12"/><path d="M4.5 13.5V8.2M8 13.5V3.5M11.5 13.5v-3"/></svg>
-        用量</a></li>
-      <li><a href="#packages" data-view="packages">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.2 5.4 8 2.5l5.8 2.9v5.2L8 13.5l-5.8-2.9z"/><path d="M2.2 5.4 8 8.3l5.8-2.9M8 8.3v5.2"/></svg>
-        积分构成</a></li>
-      <li><a href="#taskscenter" data-view="taskscenter">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 2.5h10v9H8l-3 3v-3H3z"/><path d="M6 6.5h4M6 9h2.5"/></svg>
-        任务中心</a></li>
-      <li><a href="#models" data-view="models">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 1.8 14 5v6L8 14.2 2 11V5z"/><path d="M2 5l6 3.2L14 5M8 8.2v6"/></svg>
-        模型与档位</a></li>
-      <li><a href="#config" data-view="config">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v1.9M8 12.5v1.9M1.6 8h1.9M12.5 8h1.9M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M12.5 3.5l-1.3 1.3M4.8 11.2l-1.3 1.3"/></svg>
-        配置</a></li>
-      <li><a href="#logs" data-view="logs">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.5 3.5h11M2.5 8h11M2.5 12.5h7"/></svg>
-        运行日志</a></li>
-    </ul>
-    <div class="sig">
-      <div class="row"><span class="pulse" id="navPulse"></span><span id="navState">连接中</span></div>
-      <div class="row" style="margin-top:5px"><span id="navVer">v-</span> · <span id="navRedis">-</span></div>
+    <h1>WorkBuddy2API</h1>
+    <div class="lead">输入管理密钥进入控制台。密钥在服务端校验，所有管理接口都需要它。</div>
+    <form onsubmit="return false" autocomplete="off">
+      <label class="fld"><span class="lb">管理密钥</span>
+        <input type="password" id="keyInput" placeholder="admin_key（未设置时为 api_key）" autocomplete="current-password"></label>
+      <button class="primary go" id="btnKey" type="submit">进入面板</button>
+    </form>
+    <div class="err" id="keyErr" hidden>密钥不正确，请重试。</div>
+    <div class="foot">
+      <span id="coverHint">config.json → admin_key</span>
+      <span class="grow"></span>
+      <button class="xs ghost" id="btnCoverTheme" type="button">切换明暗</button>
     </div>
-  </nav>
+  </div>
+</div>
 
-  <div class="main">
-    <div class="topbar">
-      <!-- 汉堡按钮：桌面端由 .nav-btn{display:none} 隐藏，手机端才出现 -->
-      <button class="icon ghost nav-btn" id="navBtn" aria-label="打开导航" aria-controls="navDrawer" aria-expanded="false">
-        <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>
+<div class="app" id="app">
+  <header class="topbar">
+    <a class="brand" href="#accounts" aria-label="WorkBuddy2API">
+      <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 7.5 7.4 17l4.6-7.2 4.6 7.2 2.9-9.5"/></svg></span>
+      <span class="name">WorkBuddy2API</span><span class="ver" id="navVer"></span>
+    </a>
+    <nav class="tnav" id="tnav" aria-label="主导航">
+      <a href="#accounts" data-view="accounts" class="on"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="5.5" r="2.6"/><path d="M2.8 13.5c.6-2.6 2.7-4 5.2-4s4.6 1.4 5.2 4"/></svg>账号管理</a>
+      <a href="#credits" data-view="credits"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><ellipse cx="8" cy="4.6" rx="5" ry="2.1"/><path d="M3 4.6v3.4c0 1.2 2.2 2.1 5 2.1s5-.9 5-2.1V4.6M3 8v3.4c0 1.2 2.2 2.1 5 2.1s5-.9 5-2.1V8"/></svg>积分管理</a>
+      <a href="#usage" data-view="usage"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 13.5h12"/><path d="M4.5 13.5V8.2M8 13.5V3.5M11.5 13.5v-3"/></svg>用量管理</a>
+      <a href="#models" data-view="models"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 1.8 14 5v6L8 14.2 2 11V5z"/><path d="M2 5l6 3.2L14 5M8 8.2v6"/></svg>模型管理</a>
+      <a href="#keys" data-view="keys"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="5.2" cy="10.8" r="2.7"/><path d="m7.2 8.8 6-6M11.2 4.8l1.6 1.6M9.6 6.4l1.2 1.2"/></svg>密钥管理</a>
+      <a href="#tasks" data-view="tasks"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6.5 4h7M6.5 8h7M6.5 12h7"/><path d="m2.2 4 1 1 1.6-1.8M2.2 8l1 1 1.6-1.8M2.2 12l1 1 1.6-1.8"/></svg>任务管理</a>
+      <a href="#schedule" data-view="schedule"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="6"/><path d="M8 4.6V8l2.4 1.6"/></svg>调度管理</a>
+      <a href="#logs" data-view="logs"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 2.5h7.5L13 5v8.5H3z"/><path d="M5.5 7h5M5.5 9.5h5M5.5 12h3"/></svg>日志管理</a>
+    </nav>
+    <div class="tright">
+      <span class="status" title="服务状态 · 数据存储"><span class="pulse" id="navPulse"></span><span id="navState">连接中</span><span class="dot-sep">·</span><span id="navRedis">本地内存</span></span>
+      <button class="icon ghost" id="btnTheme" title="切换明暗" aria-label="切换主题">
+        <svg id="icoTheme" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8z"/></svg>
       </button>
-      <h2 id="ttl">账号池</h2>
-      <span class="sep">/</span>
-      <span class="meta" id="subMeta">-</span>
-      <div class="grow"></div>
-      <button class="icon ghost" id="btnTheme" title="切换明暗（跟随系统 → 浅色 → 深色）" aria-label="切换主题">
-        <svg id="icoTheme" viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8z"/></svg>
+      <button class="icon ghost" id="btnRefresh" title="刷新当前页" aria-label="刷新">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M13.2 8a5.2 5.2 0 1 1-1.5-3.7"/><path d="M13.4 2.6v2.6h-2.6"/></svg>
       </button>
-      <button id="btnRefresh">刷新</button>
-      <button class="primary" id="btnAdd">添加账号</button>
+      <button class="icon ghost" id="btnLogout" title="退出（清除本机保存的管理密钥）" aria-label="退出">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.8H3.6v10.4H6"/><path d="M10 5.2 12.8 8 10 10.8M12.6 8H6.4"/></svg>
+      </button>
     </div>
+  </header>
 
-    <!-- 账号池 -->
+  <div class="pagehead"><h2 id="ttl">账号管理</h2><span class="meta" id="subMeta"></span></div>
+
+  <main>
+    <!-- ══ 账号管理 ══ -->
     <section class="view" id="view-accounts">
       <div class="stats">
-        <div class="stat acc-c"><div class="v" id="sTotal">-</div><div class="k">账号总数</div></div>
+        <div class="stat"><div class="v" id="sTotal">-</div><div class="k">账号总数</div></div>
         <div class="stat good"><div class="v" id="sHealthy">-</div><div class="k">可用</div></div>
         <div class="stat warn"><div class="v" id="sCooling">-</div><div class="k">冷却中</div></div>
         <div class="stat bad"><div class="v" id="sDisabled">-</div><div class="k">已禁用</div></div>
         <div class="stat warn"><div class="v" id="sPaused">-</div><div class="k">已暂停选号</div></div>
-        <div class="stat wide acc-c"><div class="v" id="sCredits">-</div><div class="k">积分剩余 / 总额</div></div>
+        <div class="stat wide"><div class="v" id="sCredits">-</div><div class="k">积分剩余 / 总额</div></div>
         <div class="stat"><div class="v" id="sSticky">-</div><div class="k">粘性会话</div></div>
       </div>
 
-      <!-- 卡片默认可见：此前 hidden + 「仅点检查才渲染」形成死锁（按钮藏在隐藏卡片里，
-           用户看不到也就点不到，issue #137）。现在进页面即用 /overview 的到期快照渲染
-           （数据来自 state.json，不经上游），「检查」按钮改为拉取逐包明细的增强入口。 -->
-      <div class="box" id="expBox">
-        <header>
-          <h3>积分到期提醒<span class="tip" title="按最近到期批次估算 · 日均需耗 = 批次剩余 ÷ 距到期天数 · 上游按失效时刻先后自动优先扣减（FEFO）" aria-label="按最近到期批次估算 · 日均需耗 = 批次剩余 ÷ 距到期天数 · 上游按失效时刻先后自动优先扣减（FEFO）"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3>
-          <span class="grow"></span>
-          <span class="note" id="expNote"></span>
-          <button class="xs" id="btnExpFold" aria-expanded="true">收起</button>
-          <button class="xs" id="btnExp">检查</button>
-        </header>
-        <div class="pad" id="expPad"><div id="expList"></div></div>
+      <div class="toolbar">
+        <input type="search" id="accQ" placeholder="搜索备注 / 昵称 / UID" aria-label="搜索账号">
+        <select id="accFilter" aria-label="按状态筛选">
+          <option value="">全部状态</option>
+          <option value="ok">可用</option>
+          <option value="cool">冷却 / 熔断</option>
+          <option value="paused">已暂停选号</option>
+          <option value="disabled">已禁用</option>
+          <option value="cn">国内版</option>
+          <option value="global">国际版</option>
+        </select>
+        <span class="note" id="accNote"></span>
+        <span class="grow"></span>
+        <button class="xs ghost" id="btnRemarks" title="批量编辑备注（保存在服务端）">批量备注</button>
+        <button class="xs" id="btnCheckinAll">全部签到</button>
+        <details class="menu">
+          <summary class="btnlike" aria-label="全部账号执行">全部账号执行<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+          <div class="menu-pop">
+            <button class="xs" id="btnTravelAll">猫猫旅行巡检</button>
+            <button class="xs" data-job-all="open_boxes">开 Buddy 盲盒</button>
+            <button class="xs" id="btnActivityAll">活跃上报</button>
+            <button class="xs" data-job-all="intl_daily">国际版每日活跃</button>
+            <button class="xs" data-job-all="streak">连登管家</button>
+            <button class="xs" id="btnKeepaliveAll">Token 保活</button>
+            <button class="xs" data-job-all="balance">刷新全部余额</button>
+          </div>
+        </details>
+        <button class="xs primary" id="btnAdd">添加账号</button>
       </div>
 
-      <!-- 官方补偿活动（issue #189）：「模型服务异常额外补偿 N 积分」这类限时补偿在账号侧
-           可见，但网关原先只在每日签到后盲领一次，「没有 / 已领过 / 领取真失败」三态在
-           日志里同构，补偿带截止日时签到一停就静默过期。这里把它显式摆出来：截止倒计时 +
-           逐号领取 + 全部领取。无生效活动时整卡隐藏——隐藏的是卡片本身、且渲染不依赖用户
-           点它，故不构成 issue #137 那种「入口藏在自己隐藏卡片里」的死锁。 -->
-      <div class="box" id="compBox" hidden>
+      <!-- 添加账号：并入账号管理页（原弹窗改为内嵌卡片，交互与接口不变） -->
+      <div class="box" id="addVeil">
         <header>
-          <h3>官方补偿<span class="tip" title="服务异常等限时补偿 · 查状态后按需领取 · 不占用每日签到" aria-label="服务异常等限时补偿 · 查状态后按需领取 · 不占用每日签到"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3>
+          <h3>添加账号</h3>
           <span class="grow"></span>
-          <span class="note" id="compNote"></span>
-          <button class="xs" id="btnCompRefresh">检查</button>
-          <button class="xs" id="btnCompClaimAll">全部领取</button>
+          <button class="xs ghost" id="btnCloseAdd">收起</button>
         </header>
-        <div class="pad"><div id="compList"></div></div>
-      </div>
-
-      <div class="box">
-        <header>
-          <h3>账号池</h3>
-          <span class="grow"></span>
-          <span class="note" id="accNote"></span>
-          <button class="xs ghost" id="btnRemarks">备注</button>
-          <button class="xs" id="btnCheckinAll">全部签到</button>
-          <details class="menu">
-            <summary class="btnlike" aria-label="更多批量操作">批量<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m4.5 6.5 3.5 3.5 3.5-3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
-            <div class="menu-pop">
-              <button class="xs" id="btnTravelAll">旅行巡检</button>
-              <button class="xs" id="btnActivityAll">活跃上报</button>
-              <button class="xs" id="btnKeepaliveAll">全部保活</button>
+        <div class="addbody">
+          <div class="addcol" id="addTabLogin">
+            <h4><span class="n">1</span>浏览器登录</h4>
+            <div id="addPick">
+              <div class="realm-row">
+                <label class="realm-opt"><input type="radio" name="addRealm" value="cn" checked> 国内版（CN）</label>
+                <label class="realm-opt"><input type="radio" name="addRealm" value="global"> 国际版（Global）</label>
+              </div>
+              <div class="hint">国际版登录后，网关自动完成注册地区、激活与试用额度领取。</div>
             </div>
-          </details>
-        </header>
-        <div class="tbl-wrap">
-        <table class="acc">
-          <thead><tr>
-            <th class="mark" aria-hidden="true"></th>
-            <th>账号</th><th>状态</th><th>积分</th>
-            <th>成功 / 失败</th><th>在途</th><th>用量</th><th>最近成功</th><th class="c-acts"></th>
-          </tr></thead>
-          <tbody id="accBody"><tr class="sk-row"><td colspan="9"><div class="sk w2"></div><div class="sk w1"></div><div class="sk w3"></div></td></tr></tbody>
-        </table>
+            <div id="addLoad" class="state" hidden><span class="dots">正在获取授权链接</span></div>
+            <div id="addReady" hidden>
+              <div class="state">在浏览器打开以下链接并登录：</div>
+              <div class="url" id="addUrl"></div>
+              <div class="state" id="addPoll"><span class="dots">等待授权完成，自动检测中</span></div>
+            </div>
+            <div id="addDone" class="state ok" hidden></div>
+            <div id="addErr" class="state err" hidden></div>
+            <div class="addfoot">
+              <button id="btnStartLogin" class="primary xs">获取授权链接</button>
+              <button id="btnCopyUrl" class="xs" hidden>复制链接</button>
+              <button id="btnOpenUrl" class="primary xs" hidden>在浏览器打开</button>
+            </div>
+          </div>
+          <div class="addcol" id="addTabImport">
+            <h4><span class="n">2</span>导入文件</h4>
+            <div class="hint" style="margin-bottom:10px">支持 cockpit tools 导出的账号数组 JSON、单个 token JSON，以及桌面端 <code>.info</code> 文件。</div>
+            <input type="file" id="importFile" accept=".json,.info,application/json" style="margin-bottom:8px">
+            <div id="importDone" class="state ok" hidden></div>
+            <div id="importErr" class="state err" hidden></div>
+          </div>
         </div>
+        <div class="tabs" id="addTabs"><button class="tab on" data-tab="login">浏览器登录</button><button class="tab" data-tab="import">导入</button></div>
       </div>
 
-      <div class="box">
+      <div class="acards" id="accBody"><div class="empty cards-empty"><span class="dots">加载中</span></div></div>
+
+      <div class="box" style="margin-top:24px">
         <header>
           <h3>模型锁池<span class="tip" title="哪些模型不能用、还要锁多久" aria-label="哪些模型不能用、还要锁多久"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3>
           <span class="grow"></span>
@@ -822,108 +1056,62 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
       </div>
     </section>
 
-    <!-- 任务中心 -->
-    <section class="view" id="view-taskscenter" hidden>
+    <!-- ══ 积分管理 ══ -->
+    <section class="view" id="view-credits" hidden>
+      <div class="stats" id="crStats">
+        <div class="stat"><div class="v" id="crRemain">-</div><div class="k">积分剩余</div></div>
+        <div class="stat"><div class="v" id="crTotal">-</div><div class="k">积分总额</div></div>
+        <div class="stat warn"><div class="v" id="crExpiring">-</div><div class="k">快过期积分</div></div>
+        <div class="stat"><div class="v" id="crAccounts">-</div><div class="k">有积分的账号</div></div>
+        <div class="stat"><div class="v" id="crPacks">-</div><div class="k">积分包（已查询）</div></div>
+      </div>
+
+      <div class="box" id="expBox">
+        <header>
+          <h3>积分到期提醒<span class="tip" title="按最近到期批次估算 · 日均需耗 = 批次剩余 ÷ 距到期天数 · 上游按失效时刻先后自动优先扣减（FEFO）" aria-label="按最近到期批次估算"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3>
+          <span class="grow"></span>
+          <span class="note" id="expNote"></span>
+          <button class="xs" id="btnExpFold" aria-expanded="true">收起</button>
+          <button class="xs" id="btnExp">检查</button>
+        </header>
+        <div class="pad" id="expPad"><div id="expList"></div></div>
+      </div>
+
+      <div class="box" id="compBox" hidden>
+        <header>
+          <h3>官方补偿<span class="tip" title="服务异常等限时补偿 · 查状态后按需领取 · 不占用每日签到" aria-label="服务异常等限时补偿"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3>
+          <span class="grow"></span>
+          <span class="note" id="compNote"></span>
+          <button class="xs" id="btnCompRefresh">检查</button>
+          <button class="xs" id="btnCompClaimAll">全部领取</button>
+        </header>
+        <div class="pad"><div id="compList"></div></div>
+      </div>
+
       <div class="box">
         <header>
-          <h3>成长任务队列 <span class="hint" id="qcSummary"></span></h3>
+          <h3>账号积分<span class="hint">每个账号一行，点开看积分构成与逐包明细</span></h3>
           <span class="grow"></span>
-          <button class="xs" id="btnSchoolVouchers" title="开学季抽奖抽中的第三方券码（活动已结束，历史券码仍可查）">查询券码</button>
-          <label class="sel-note">并发
-            <select id="qcConc"><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option></select>
-          </label>
-          <button class="xs" id="btnScanAll">扫描待办</button>
-          <button class="xs primary" id="btnRunQueue">执行全部待办</button>
+          <input type="search" id="crQ" class="xs" placeholder="搜索备注 / 昵称 / UID" style="width:200px;height:28px">
+          <span class="note" id="crNote"></span>
+          <button class="xs" id="btnCrFetch" title="逐账号实时查询上游积分包（账号多时较慢）">查询积分构成</button>
+          <button class="xs" data-job-all="balance">刷新全部余额</button>
         </header>
-        <div class="qprog" id="qProg" hidden>
-          <div class="qbar"><i id="qBarFill"></i></div>
-          <span class="note" id="qProgText"></span>
-        </div>
-        <div class="tc-empty" id="tcEmpty">
-          <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <rect x="8" y="6" width="24" height="36" rx="3"/>
-            <path d="M14 16h12M14 24h12M14 32h7" opacity=".45"/>
-            <circle cx="35" cy="33" r="8"/><path d="m40 38 5 5"/>
-          </svg>
-          <div class="t">还没有扫描过</div>
-          <div class="d">扫描所有账号的成长任务与开学季待办，把没做的排成一列，一键执行。</div>
-        </div>
-        <div id="qcList"></div>
+        <div class="xrows" id="crRows"></div>
       </div>
-    </section>
 
-    <!-- 模型与档位 -->
-    <section class="view" id="view-models" hidden>
-      <div class="box">
-        <header>
-          <h3>模型能力<span class="tip" title="max_tokens bug已修复目前可以正常透传最大输出,但是官方返回的最大输出仅为参考，不保证完全正确" aria-label="max_tokens bug已修复目前可以正常透传最大输出,但是官方返回的最大输出仅为参考，不保证完全正确"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3>
-          <span class="grow"></span>
-          <span class="note" id="mdNote">实时查询上游</span>
-          <button class="xs" id="btnModels">重新获取</button>
-        </header>
-        <div class="fbar" id="mdFilter">
-          <input id="mdQ" type="search" placeholder="搜索模型 ID / 名称 / 描述 / 厂商" aria-label="搜索模型">
-          <select id="mdRealm" aria-label="按域筛选">
-            <option value="">全部域</option>
-            <option value="cn">国内版 CN</option>
-            <option value="global">国际版 Global</option>
-          </select>
-          <select id="mdCap" aria-label="按能力筛选">
-            <option value="">全部能力</option>
-            <option value="tool">支持工具调用</option>
-            <option value="vision">支持视觉</option>
-            <option value="reasoning">支持思考</option>
-            <option value="default">默认模型</option>
-          </select>
-          <select id="mdEffort" aria-label="按思考档位筛选">
-            <option value="">全部档位</option>
-            <option value="off">可关闭思考</option>
-            <option value="low">low</option>
-            <option value="medium">medium</option>
-            <option value="high">high</option>
-            <option value="xhigh">xhigh</option>
-            <option value="max">max</option>
-          </select>
-          <select id="mdPromo" aria-label="按价格筛选">
-            <option value="">全部价格</option>
-            <option value="promo">有折扣 / 限时免费</option>
-            <option value="free">限时免费</option>
-            <option value="discount">打折（非免费）</option>
-          </select>
-          <select id="mdSort" aria-label="排序方式">
-            <option value="default">上游默认顺序</option>
-            <option value="rate">积分倍率 低 → 高</option>
-            <option value="context">上下文长度 大 → 小</option>
-            <option value="output">最大输出 大 → 小</option>
-            <option value="name">模型 ID A → Z</option>
-          </select>
-          <span class="grow"></span>
-          <span class="note" id="mdCount"></span>
-          <button class="xs ghost" id="mdReset" title="清空全部筛选条件">重置</button>
-        </div>
-        <div class="tbl-wrap">
-        <table class="acc md">
-          <thead><tr><th class="mark" aria-hidden="true"></th><th>模型</th><th>积分倍率</th><th>默认档</th><th>支持的思考档位</th><th>上下文长度</th><th>最大输出</th></tr></thead>
-          <tbody id="mdBody"></tbody>
-        </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- 积分构成 -->
-    <section class="view" id="view-packages" hidden>
       <div class="box">
         <header>
           <h3>积分到期分布</h3>
           <span class="grow"></span>
           <span class="note">按批次到期日聚合，颜色区分账号</span>
         </header>
-        <div class="pad"><div id="pkExpiry"></div></div>
+        <div class="pad"><div id="pkExpiry"><div class="empty">点上方「查询积分构成」后，按批次到期日聚合展示</div></div></div>
       </div>
 
       <div class="box">
         <header>
-          <h3>账号对比</h3>
+          <h3>积分构成对比</h3>
           <span class="grow"></span>
           <span class="note" id="pkNote">—</span>
           <select id="pkSort" class="xs" title="逐包明细的排序规则">
@@ -932,13 +1120,37 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
           </select>
           <button class="xs" id="btnPk">刷新</button>
         </header>
-        <div class="pad"><div class="pk-grid" id="pkSummary"></div></div>
+        <div class="pad"><div class="pk-grid" id="pkSummary"><div class="empty" style="grid-column:1/-1">还没有查询积分包，点「刷新」逐账号拉取</div></div></div>
       </div>
       <div id="pkDetail"></div>
     </section>
 
-    <!-- 用量 -->
+    <!-- ══ 用量管理 ══ -->
     <section class="view" id="view-usage" hidden>
+      <div class="toolbar">
+        <span class="seg" id="usTabs"><button data-ut="keys" class="on">按密钥</button><button data-ut="pool">按账号 / 模型 / 域</button></span>
+        <span class="grow"></span>
+        <span class="note" id="kuNote"></span>
+        <select id="kuDays" aria-label="统计区间"><option value="1">今天</option><option value="7" selected>近 7 天</option><option value="30">近 30 天</option><option value="90">近 90 天</option></select>
+        <button class="xs" id="btnKu">刷新</button>
+      </div>
+      <div id="usKeysPane">
+        <div class="box">
+          <header><h3>按密钥用量</h3><span class="grow"></span><span class="note" id="kuSub">—</span></header>
+          <div class="kpis" id="kuStats"></div>
+          <div class="pad">
+            <div class="uschart">
+              <div class="uschart-hd"><span class="lb">每日请求</span><span class="note">按密钥堆叠</span><span class="grow"></span><span class="legend" id="kuLegend"></span></div>
+              <div id="kuChart" class="uschart-body"></div>
+            </div>
+          </div>
+        </div>
+        <div class="box">
+          <header><h3>密钥明细<span class="hint">点开看按日 / 按模型拆分</span></h3><span class="grow"></span></header>
+          <div class="xrows" id="kuRows"></div>
+        </div>
+      </div>
+      <div id="usPoolPane" hidden>
       <div class="box">
         <header>
           <h3>用量总览</h3>
@@ -1009,90 +1221,255 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
           </table>
         </div>
       </div>
+      </div>
     </section>
 
-    <!-- 配置 -->
-    <section class="view" id="view-config" hidden>
+
+    <!-- ══ 模型管理 ══ -->
+    <section class="view" id="view-models" hidden>
+      <div class="box">
+        <header>
+          <h3>模型管理<span class="tip" title="max_tokens bug已修复目前可以正常透传最大输出,但是官方返回的最大输出仅为参考，不保证完全正确" aria-label="max_tokens bug已修复目前可以正常透传最大输出,但是官方返回的最大输出仅为参考，不保证完全正确"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></h3>
+          <span class="grow"></span>
+          <span class="note" id="mdNote">实时查询上游</span>
+          <button class="xs" id="btnMdTestAll" title="对筛选后的模型逐个发送极短请求">测试筛选结果</button>
+          <button class="xs" id="btnModels">重新获取</button>
+        </header>
+        <div class="fbar" id="mdFilter">
+          <input id="mdQ" type="search" placeholder="搜索模型 ID / 名称 / 描述 / 厂商" aria-label="搜索模型">
+          <select id="mdRealm" aria-label="按域筛选">
+            <option value="">全部域</option>
+            <option value="cn">国内版 CN</option>
+            <option value="global">国际版 Global</option>
+          </select>
+          <select id="mdCap" aria-label="按能力筛选">
+            <option value="">全部能力</option>
+            <option value="enabled">仅已启用</option>
+            <option value="disabled">仅已停用</option>
+            <option value="tool">支持工具调用</option>
+            <option value="vision">支持视觉</option>
+            <option value="reasoning">支持思考</option>
+            <option value="default">默认模型</option>
+          </select>
+          <select id="mdEffort" aria-label="按思考档位筛选">
+            <option value="">全部档位</option>
+            <option value="off">可关闭思考</option>
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+            <option value="xhigh">xhigh</option>
+            <option value="max">max</option>
+          </select>
+          <select id="mdPromo" aria-label="按价格筛选">
+            <option value="">全部价格</option>
+            <option value="promo">有折扣 / 限时免费</option>
+            <option value="free">限时免费</option>
+            <option value="discount">打折（非免费）</option>
+          </select>
+          <select id="mdSort" aria-label="排序方式">
+            <option value="default">上游默认顺序</option>
+            <option value="rate">积分倍率 低 → 高</option>
+            <option value="context">上下文长度 大 → 小</option>
+            <option value="output">最大输出 大 → 小</option>
+            <option value="name">模型 ID A → Z</option>
+          </select>
+          <span class="grow"></span>
+          <span class="note" id="mdCount"></span>
+          <button class="xs ghost" id="mdReset" title="清空全部筛选条件">重置</button>
+        </div>
+        <div class="tbl-wrap">
+        <table class="acc md">
+          <thead><tr><th class="mark" aria-hidden="true"></th><th>模型</th><th>积分倍率</th><th>默认档</th><th>支持的思考档位</th><th>上下文长度</th><th>最大输出</th><th>启用</th><th class="c-acts">测试</th></tr></thead>
+          <tbody id="mdBody"></tbody>
+        </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ══ 密钥管理 ══ -->
+    <section class="view" id="view-keys" hidden>
+      <div class="box">
+        <header><h3>调用鉴权</h3><span class="grow"></span><span class="note" id="kAuthNote"></span></header>
+        <div class="pad">
+          <div class="info-grid" id="kInfo"></div>
+          <div class="callout" style="margin-top:14px"><div>调用方在请求头带 <code>Authorization: Bearer &lt;密钥&gt;</code>。配置文件里的 <b>api_key</b> 与下表里任一<b>启用中</b>的密钥都可以调用 <code>/v1/*</code>；面板登录只认<b>管理密钥 admin_key</b>（未设置时回落 api_key）。每个请求都会记录所用密钥，用量按密钥统计（见「用量管理 → 按密钥」）。</div></div>
+        </div>
+      </div>
+      <div class="box">
+        <header>
+          <h3>API 密钥</h3>
+          <span class="grow"></span>
+          <div class="keyform">
+            <input id="kNewName" placeholder="新密钥名称，例如：Cherry Studio" maxlength="40">
+            <button class="xs primary" id="btnKeyCreate">创建密钥</button>
+          </div>
+        </header>
+        <div class="tbl-wrap">
+          <table class="acc">
+            <thead><tr><th>名称</th><th>密钥</th><th>状态</th><th class="num">近 7 天请求</th><th class="num">近 7 天 Token</th><th>创建时间</th><th>最近使用</th><th class="c-acts"></th></tr></thead>
+            <tbody id="keyBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ 任务管理 ══ -->
+    <section class="view" id="view-tasks" hidden>
+      <div class="box">
+        <header>
+          <h3>全部账号执行<span class="hint">立即对所有符合条件的账号跑一次（异步），结果写入任务记录</span></h3>
+          <span class="grow"></span>
+          <span class="note" id="jobActive"></span>
+        </header>
+        <div class="pad">
+          <div class="jobbar" id="jobAllBar">
+            <button class="xs" data-job-all="checkin">每日签到</button>
+            <button class="xs" data-job-all="streak">连登管家</button>
+            <button class="xs" data-job-all="travel">猫猫旅行</button>
+            <button class="xs" data-job-all="open_boxes">开 Buddy 盲盒</button>
+            <button class="xs" data-job-all="activity">活跃上报</button>
+            <button class="xs" data-job-all="intl_daily">国际版每日活跃</button>
+            <button class="xs" data-job-all="blackcat">夜猫子</button>
+            <button class="xs" data-job-all="keepalive">Token 保活</button>
+            <button class="xs" data-job-all="task_sweep">任务补领</button>
+            <button class="xs" data-job-all="growth">成长任务队列</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="box">
+        <header>
+          <h3>账号任务<span class="hint">每个账号一行，点开看成长任务、单项执行与任务记录</span></h3>
+          <span class="grow"></span>
+          <input type="search" id="tkQ" class="xs" placeholder="搜索备注 / 昵称 / UID" style="width:200px;height:28px">
+          <span class="note" id="tkNote"></span>
+        </header>
+        <div class="xrows" id="tkRows"></div>
+      </div>
+
+      <div class="box">
+        <header>
+          <h3>成长任务队列 <span class="hint" id="qcSummary"></span></h3>
+          <span class="grow"></span>
+          <button class="xs" id="btnSchoolVouchers" title="开学季抽奖抽中的第三方券码（活动已结束，历史券码仍可查）">查询券码</button>
+          <label class="sel-note">并发
+            <select id="qcConc"><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option></select>
+          </label>
+          <button class="xs" id="btnScanAll">扫描待办</button>
+          <button class="xs primary" id="btnRunQueue">执行全部待办</button>
+        </header>
+        <div class="qprog" id="qProg" hidden>
+          <div class="qbar"><i id="qBarFill"></i></div>
+          <span class="note" id="qProgText"></span>
+        </div>
+        <div class="tc-empty" id="tcEmpty">
+          <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="8" y="6" width="24" height="36" rx="3"/>
+            <path d="M14 16h12M14 24h12M14 32h7" opacity=".45"/>
+            <circle cx="35" cy="33" r="8"/><path d="m40 38 5 5"/>
+          </svg>
+          <div class="t">还没有扫描过</div>
+          <div class="d">扫描所有账号的成长任务与开学季待办，把没做的排成一列，一键执行。</div>
+        </div>
+        <div id="qcList"></div>
+      </div>
+
+      <div class="box">
+        <header>
+          <h3>运行历史<span class="hint">每一轮批量执行（排程到点 / 手动）的汇总，点开看逐账号结果</span></h3>
+          <span class="grow"></span>
+          <span class="note" id="runNote"></span>
+          <button class="xs" id="btnRunsReload">刷新</button>
+          <button class="xs ghost danger" id="btnRunsClear">清空记录</button>
+        </header>
+        <div class="xrows" id="runRows"></div>
+      </div>
+    </section>
+
+    <!-- ══ 调度管理 ══ -->
+    <section class="view" id="view-schedule" hidden>
+      <div class="box">
+        <div class="master" id="schMaster">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.2V12l3.2 2.1"/></svg></div>
+          <div class="tx"><div class="t" id="schMasterT">调度器</div><div class="d" id="schMasterD">—</div></div>
+          <button class="xs" id="btnSchReload">刷新状态</button>
+        </div>
+        <div class="pad" style="border-top:1px solid var(--line-soft)">
+          <div class="sub-h" style="font-size:12px;color:var(--ink-3);margin-bottom:8px">下一次执行</div>
+          <div class="nextlist" id="schNext"></div>
+        </div>
+      </div>
+
       <form id="cfgForm">
         <div class="box">
-          <header><h3>服务</h3><span class="grow"></span><span class="note" id="cfgPath"></span></header>
+          <header><h3>调度设置</h3><span class="grow"></span><span class="note">北京时间整点 · 保存后立即生效</span></header>
           <div class="pad">
-            <div class="grid2">
-              <label class="fld"><span class="lb">监听地址</span>
-                <input name="listen" placeholder=":7863">
-                <span class="hint">改动需重启进程</span></label>
-              <label class="fld"><span class="lb">API 密钥</span>
-                <div class="inline"><input name="api_key" id="cfgKey" type="password" placeholder="留空 = 不鉴权">
-                <button type="button" class="xs" id="btnEye">显示</button></div>
-                <span class="hint">立即生效（含面板自身）</span></label>
+            <div class="switch" style="padding-top:0"><span class="lb">调度总开关<span class="hint" style="display:block;font-weight:400">关闭后所有定时任务与任务补领都停止自动运行（手动执行照常可用；余额后台刷新不受影响）</span></span>
+              <input type="checkbox" name="schedule_enabled"></div>
+            <div class="hr"></div>
+            <div class="sched-grid">
+              <div class="sjob"><div class="switch"><span class="lb">每日签到</span><input type="checkbox" name="checkin_enabled"></div>
+                <label class="fld"><span class="lb">时点（小时，逗号分隔）</span><input name="checkin_hours" placeholder="9, 21"></label>
+                <div class="hint">签到 + 余额刷新解冻，随后跑连登管家（补签 / 礼包 / 补偿 / 兑换 / 抽奖）</div><div class="nx" data-next="checkin"></div></div>
+              <div class="sjob"><div class="switch"><span class="lb">猫猫旅行</span><input type="checkbox" name="travel_enabled"></div>
+                <label class="fld"><span class="lb">时点</span><input name="travel_hours" placeholder="9, 21"></label>
+                <div class="switch" style="padding:4px 0 0"><span class="lb" style="font-weight:400">旅行结束后开 Buddy 盲盒</span><input type="checkbox" name="travel_open_boxes"></div>
+                <div class="hint">派出 / 领奖 / 无猫领养；开启后用多余能量开盲盒</div><div class="nx" data-next="travel"></div></div>
+              <div class="sjob"><div class="switch"><span class="lb">活跃上报</span><input type="checkbox" name="activity_enabled"></div>
+                <label class="fld"><span class="lb">时点</span><input name="activity_hours" placeholder="10"></label>
+                <div class="hint">点亮连登 + 解锁领养前置（国内 + 国际）</div><div class="nx" data-next="activity"></div></div>
+              <div class="sjob"><div class="switch"><span class="lb">夜猫子</span><input type="checkbox" name="blackcat_enabled"></div>
+                <label class="fld"><span class="lb">时点</span><input name="blackcat_hours" placeholder="23"></label>
+                <div class="hint">23:00–08:00 窗口内 glm-5.2 对话补足 black_cat</div><div class="nx" data-next="blackcat"></div></div>
+              <div class="sjob"><div class="switch"><span class="lb">Token 保活</span><input type="checkbox" name="keepalive_enabled"></div>
+                <label class="fld"><span class="lb">时点</span><input name="keepalive_hours" placeholder="22"></label>
+                <div class="hint">刷新 token；连续 3 次 session dead 自动禁用</div><div class="nx" data-next="keepalive"></div></div>
+              <div class="sjob"><div class="switch"><span class="lb">成长任务自动执行</span><input type="checkbox" name="growth_enabled"></div>
+                <label class="fld"><span class="lb">时点</span><input name="growth_hours" placeholder="1"></label>
+                <div class="hint">到点自动「扫描 + 执行全部待办」（Sequential 链零点解锁，建议零点后）</div><div class="nx" data-next="growth"></div></div>
+              <div class="sjob"><div class="switch"><span class="lb">任务补领清扫</span><input type="checkbox" name="task_sweep_enabled"></div>
+                <label class="fld"><span class="lb">清扫间隔（分钟）</span><input name="task_sweep_minutes" type="number" min="1" placeholder="15"></label>
+                <div class="hint">把「已达标未领奖」的成长任务领掉，只发幂等 accept / claim（#174）</div></div>
+              <div class="sjob"><div class="switch"><span class="lb">后台刷新余额</span><input type="checkbox" name="balance_refresh_enabled"></div>
+                <label class="fld"><span class="lb">刷新间隔（分钟）</span><input name="balance_refresh_minutes" type="number" min="1" placeholder="5"></label>
+                <div class="hint">选号依据，不受调度总开关影响</div></div>
+              <div class="sjob wide"><div class="switch"><span class="lb">国际版每日活跃</span><input type="checkbox" name="intl_daily_enabled"></div>
+                <div class="sjob-fields">
+                  <label class="fld"><span class="lb">时点</span><input name="intl_daily_hours" placeholder="10, 20"></label>
+                  <label class="fld"><span class="lb">桌面通道模型（依次尝试）</span><input name="intl_daily_models" placeholder="deepseek-v4.1-flash"></label>
+                  <label class="fld"><span class="lb">对话内容</span><input name="intl_daily_prompt" placeholder="Hi"></label>
+                  <div class="switch sjob-inline"><span class="lb" style="font-weight:400">同时跑网页通道（云端会话）</span><input type="checkbox" name="intl_daily_web"></div>
+                </div>
+                <div class="hint">只对国际版账号：桌面通道依次尝试上面的模型发一条对话，网页通道再开一次云端会话；当天成功一次后后续时点自动跳过</div><div class="nx" data-next="intl_daily"></div></div>
             </div>
-            <label class="fld"><span class="lb">单账号明细默认展示条数</span>
-              <input name="package_detail_limit" type="number" min="1" placeholder="5">
-              <span class="hint">积分构成页按最早到期展示，其余未用完包聚合</span></label>
+            <div class="hr" style="margin-top:16px"></div>
+            <div class="switch"><span class="lb">保号任务覆盖已禁用账号<span class="hint" style="display:block;font-weight:400">打开后已禁用的账号仍签到 / 活跃上报 / 保活 / 刷新余额（依旧不参与选号）；只想让单个账号临时让位请用账号卡片的「暂停选号」</span></span>
+              <input type="checkbox" name="include_disabled_in_tasks"></div>
           </div>
         </div>
 
         <div class="box">
-          <header><h3>定时任务</h3></header>
+          <header><h3>服务与密钥</h3><span class="grow"></span><span class="note" id="cfgPath"></span></header>
           <div class="pad">
-            <div class="grid2">
-              <div>
-                <div class="switch"><span class="lb">自动签到</span>
-                  <input type="checkbox" name="checkin_enabled"></div>
-                <label class="fld"><span class="lb">签到时点（小时，逗号分隔）</span>
-                  <input name="checkin_hours" placeholder="9, 21"></label>
-              </div>
-              <div>
-                <div class="switch"><span class="lb">Token 保活</span>
-                  <input type="checkbox" name="keepalive_enabled"></div>
-                <label class="fld"><span class="lb">保活时点（小时，逗号分隔）</span>
-                  <input name="keepalive_hours" placeholder="22"></label>
-              </div>
+            <div class="grid3">
+              <label class="fld"><span class="lb">监听地址</span>
+                <input name="listen" placeholder=":7863">
+                <span class="hint">改动需重启进程</span></label>
+              <label class="fld"><span class="lb">调用密钥 api_key</span>
+                <div class="inline"><input name="api_key" id="cfgKey" type="password" placeholder="留空 = 不修改">
+                <button type="button" class="xs" id="btnEye">显示</button></div>
+                <span class="hint">/v1/* 调用；另可在「密钥管理」创建多个</span></label>
+              <label class="fld"><span class="lb">管理密钥 admin_key</span>
+                <div class="inline"><input name="admin_key" id="cfgAdminKey" type="password" placeholder="留空 = 回落 api_key">
+                <button type="button" class="xs" id="btnEyeAdmin">显示</button></div>
+                <span class="hint">登录封面与所有管理接口使用；立即生效</span></label>
             </div>
-            <div class="hr"></div>
-            <div class="grid2">
-              <div>
-                <div class="switch"><span class="lb">猫猫旅行</span>
-                  <input type="checkbox" name="travel_enabled"></div>
-                <label class="fld"><span class="lb">旅行时点（小时，逗号分隔）</span>
-                  <input name="travel_hours" placeholder="9, 21">
-                  <span class="hint">一趟派出 + 一趟领奖闭环</span></label>
-              </div>
-              <div>
-                <div class="switch"><span class="lb">活跃上报</span>
-                  <input type="checkbox" name="activity_enabled"></div>
-                <label class="fld"><span class="lb">上报时点（小时，逗号分隔）</span>
-                  <input name="activity_hours" placeholder="10">
-                  <span class="hint">点亮连登 + 解锁领养前置</span></label>
-              </div>
+<div class="grid3">
+            <label class="fld"><span class="lb">单账号明细默认展示条数</span>
+              <input name="package_detail_limit" type="number" min="1" placeholder="5">
+              <span class="hint">积分构成按最早到期展示，其余未用完包聚合</span></label>
             </div>
-            <div class="hr"></div>
-            <div class="grid2">
-              <div class="switch"><span class="lb">后台刷新余额</span>
-                <input type="checkbox" name="balance_refresh_enabled"></div>
-              <label class="fld"><span class="lb">刷新间隔（分钟）</span>
-                <input name="balance_refresh_minutes" type="number" min="1" placeholder="5"></label>
-            </div>
-            <div class="hr"></div>
-            <div class="grid2">
-              <div class="switch"><span class="lb">成长任务自动执行</span>
-                <input type="checkbox" name="growth_enabled" checked></div>
-              <label class="fld"><span class="lb">执行时点（小时，逗号分隔）</span>
-                <input name="growth_hours" placeholder="1">
-                <span class="hint">每日到点自动「扫描 + 执行全部待办」（Sequential 任务链零点解锁后自动推进，建议零点后）</span></label>
-            </div>
-            <div class="hr"></div>
-            <div class="grid2">
-              <div class="switch"><span class="lb">任务补领清扫</span>
-                <input type="checkbox" name="task_sweep_enabled" checked></div>
-              <label class="fld"><span class="lb">清扫间隔（分钟）</span>
-                <input name="task_sweep_minutes" type="number" min="1" placeholder="15"></label>
-            </div>
-            <div class="hint">周期扫描全部账号，把「进度已达标但尚未领奖」的成长任务补领掉（不含自动动作的口令任务也能领），并顺带接受未接受的任务。只发 accept / claim 两条<b>幂等</b>请求，不跑任何对话或上报行为，开销可忽略。<br>用途：真实对话点亮的任务不在自动动作白名单里，成长队列与「一键完成」都不会去领它——积分因此卡在半路上不去（#174）。</div>
-            <div class="hr"></div>
-            <div class="switch"><span class="lb">保号任务覆盖已禁用账号</span>
-              <input type="checkbox" name="include_disabled_in_tasks"></div>
-            <div class="hint">禁用只关选号：打开后已禁用的账号仍会签到 / 活跃上报 / 保活 / 刷新余额（依旧不参与选号）。适合「一次只放开一个账号、用禁用做流量开关」的轮换养号用法，默认关闭。<br>若只想让<b>单个</b>账号临时退出选号但保留保号，直接用账号行的「<b>暂停选号</b>」按钮（账号级，无需打开本开关）。</div>
           </div>
         </div>
 
@@ -1119,7 +1496,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
               <label class="fld"><span class="lb">国际版账号顺序（UID）</span>
                 <input name="international_account_order" placeholder="uid1, uid2, uid3"></label>
             </div>
-            <div class="hint">按地区独立热生效；未列出的账号按 UID 排序追加。指针按地区和模型分别保存。会话粘性、模型成本分层优先；有序策略等待冷却恢复，不提前试探。临时重试或在途占满不推进顺序耗尽的主账号。闲置与快过期积分权重仅用于加权随机。</div>
+            <div class="hint block">按地区独立热生效；未列出的账号按 UID 排序追加。指针按地区和模型分别保存。会话粘性、模型成本分层优先；有序策略等待冷却恢复，不提前试探。临时重试或在途占满不推进顺序耗尽的主账号。闲置与快过期积分权重仅用于加权随机。</div>
             <div class="grid3">
               <label class="fld"><span class="lb">单账号最大在途</span>
                 <input name="max_in_flight" type="number" min="0" placeholder="3">
@@ -1227,7 +1604,9 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
           </div>
         </div>
 
+
         <div class="savebar">
+          <span class="hint">调度设置与系统配置共用这一个保存按钮</span>
           <span class="grow"></span>
           <span class="restart-note" id="cfgNote"></span>
           <button type="button" id="btnCfgReload">放弃修改</button>
@@ -1236,7 +1615,6 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
       </form>
     </section>
 
-    <!-- 日志 -->
     <section class="view" id="view-logs" hidden>
       <div class="box">
         <header>
@@ -1254,6 +1632,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
             <option value="stream_error">流错误</option>
             <option value="interrupted">中断</option>
           </select>
+          <select id="reqKey" aria-label="按密钥筛选"><option value="">全部密钥</option></select>
           <span class="trange" id="reqRange"></span>
           <select id="reqLimit" aria-label="读取条数">
             <option value="100" selected>最近 100 条</option>
@@ -1317,11 +1696,8 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
         </div>
       </div>
     </section>
-  </div>
+  </main>
 </div>
-
-<!-- 抽屉遮罩：仅 ≤760px 由 app.js 切 .on；桌面端 display:none，不参与布局 -->
-<div class="nav-veil" id="navVeil"></div>
 
 <!-- 积分任务 -->
 <div class="veil" id="taskVeil">
@@ -1366,78 +1742,31 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
   </div>
 </div>
 
-<!-- 添加账号 -->
-<div class="veil" id="addVeil">
-  <div class="dlg">
+
+<!-- 新建密钥：明文只显示这一次 -->
+<div class="veil" id="secretVeil">
+  <div class="dlg" style="width:520px">
     <header>
-      <h3>添加账号</h3>
-      <div class="tabs" id="addTabs">
-        <button class="tab on" data-tab="login">浏览器登录</button>
-        <button class="tab" data-tab="import">导入 JSON</button>
-      </div>
+      <h3>密钥已创建</h3>
+      <div class="hint">请立即复制保存——关闭后无法再次查看完整密钥（服务端只保存摘要）。</div>
     </header>
     <div class="body">
-      <!-- 浏览器登录 -->
-      <div id="addTabLogin" class="tab-panel">
-        <div id="addPick">
-          <div class="realm-row">
-            <span class="hint" style="font-size:12px">版本：</span>
-            <label class="realm-opt"><input type="radio" name="addRealm" value="cn" checked> 国内版（CN）</label>
-            <label class="realm-opt"><input type="radio" name="addRealm" value="global"> 国际版（Global）</label>
-          </div>
-          <div class="hint" style="font-size:12px;margin-top:2px">国际版登录后，网关自动完成注册地区、激活与试用额度领取，全程无需手动操作。</div>
-        </div>
-        <div id="addLoad" class="state" hidden><span class="dots">正在获取授权链接</span></div>
-        <div id="addReady" hidden>
-          <div class="state">在浏览器打开以下链接并登录：</div>
-          <div class="url" id="addUrl"></div>
-          <div class="state" id="addPoll"><span class="dots">等待授权完成，自动检测中</span></div>
-        </div>
-        <div id="addDone" class="state ok" hidden></div>
-        <div id="addErr" class="state err" hidden></div>
-      </div>
-      <!-- 导入 JSON -->
-      <div id="addTabImport" class="tab-panel" hidden>
-        <div class="hint" style="margin-bottom:8px">选择 cockpit tools 导出的 JSON 文件，批量导入账号。文件需为账号数组格式。</div>
-        <input type="file" id="importFile" accept=".json" style="margin-bottom:8px">
-        <div id="importDone" class="state ok" hidden></div>
-        <div id="importErr" class="state err" hidden></div>
-      </div>
+      <div class="secret"><span id="secretText"></span></div>
     </div>
     <footer>
       <span class="grow"></span>
-      <button id="btnStartLogin" class="primary">获取授权链接</button>
-      <button id="btnCopyUrl" hidden>复制链接</button>
-      <button id="btnOpenUrl" class="primary" hidden>在浏览器打开</button>
-      <button id="btnCloseAdd">关闭</button>
+      <button id="btnSecretCopy">复制</button>
+      <button class="primary" id="btnSecretClose">我已保存</button>
     </footer>
   </div>
 </div>
 
-<!-- 密钥 -->
-<div class="veil" id="keyVeil" data-lock="1">
-  <div class="dlg" style="width:420px">
-    <header>
-      <h3>需要访问密钥</h3>
-      <div class="hint">该网关已启用 api_key 鉴权，请输入 config.json 中的密钥。</div>
-    </header>
-    <div class="body">
-      <form style="display:contents" onsubmit="return false"><input type="password" id="keyInput" placeholder="api_key" autocomplete="off"></form>
-      <div class="state err" id="keyErr" hidden style="margin-top:10px">密钥不正确，请重试。</div>
-    </div>
-    <footer>
-      <span class="grow"></span>
-      <button class="primary" id="btnKey">进入</button>
-    </footer>
-  </div>
-</div>
-
-<!-- 账号备注：只写本机 localStorage，不写回服务器；账号池与用量两个视图同步显示 -->
+<!-- 账号备注批量编辑（保存在服务端 panel-store.json；账号 / 积分 / 任务 / 用量各页同步显示） -->
 <div class="veil" id="remarkVeil">
   <div class="dlg" style="width:560px">
     <header>
       <h3>账号备注</h3>
-      <div class="hint">备注只存在本机浏览器（localStorage: wb2api.remarks.v1），不写回后端；账号池与用量页会同时显示「备注 + 原昵称」。留空即清除该账号备注。</div>
+      <div class="hint">备注保存在服务端，重启不丢；账号、积分、任务、用量各页都会在名称下方显示，并可按备注搜索。留空即清除。</div>
     </header>
     <div class="body">
       <div class="rm-list" id="remarkBody"></div>
@@ -1454,6 +1783,7 @@ legend { font-size: 12px; color: var(--ink-3); font-weight: 600; padding-bottom:
 <div id="toasts"></div>
 
 <script src="app.js"></script>
+<script src="v3.js"></script>
 <script src="mobile.js"></script>
 </body>
 </html>

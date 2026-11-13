@@ -167,6 +167,7 @@ func (p *Panel) routes() {
 	p.mux.HandleFunc("GET /panel/app.js", p.appScript)
 	p.mux.HandleFunc("GET /panel/mobile.css", p.mobileStyle)
 	p.mux.HandleFunc("GET /panel/mobile.js", p.mobileScript)
+	p.mux.HandleFunc("GET /panel/v3.js", p.v3Script)
 	p.mux.HandleFunc("GET /panel/api/overview", p.withAuth(p.overview))
 	p.mux.HandleFunc("GET /panel/api/logs", p.withAuth(p.logsHandler))
 	p.mux.HandleFunc("GET /panel/api/request_metrics", p.withAuth(p.requestMetrics))
@@ -351,6 +352,7 @@ func (p *Panel) requestLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	q := r.URL.Query()
 	rows, err := p.cfg.RequestLog.ReadArchive(limit, reqlog.Filter{
+		APIKey:    q.Get("api_key"),
 		Outcome:   q.Get("outcome"),
 		Account:   q.Get("account"),
 		Model:     q.Get("model"),
@@ -1020,6 +1022,16 @@ func (p *Panel) usageSave(w http.ResponseWriter, r *http.Request) {
 // 标 error，不影响其它账号——一个号 token 失效不该让整页空白。
 func (p *Panel) packages(w http.ResponseWriter, r *http.Request) {
 	accts := p.cfg.Pool.List()
+	// panel-v3：?uid= 只查单个账号（积分管理行内展开时按需查询，不必全量打上游）。
+	if uid := r.URL.Query().Get("uid"); uid != "" {
+		one := accts[:0:0]
+		for _, s := range accts {
+			if s.UID == uid {
+				one = append(one, s)
+			}
+		}
+		accts = one
+	}
 	type row struct {
 		UID      string                   `json:"uid"`
 		Nickname string                   `json:"nickname"`

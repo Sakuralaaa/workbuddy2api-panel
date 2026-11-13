@@ -1,50 +1,13 @@
-/* mobile.js — 手机端（≤760px）联动逻辑：抽屉开合 + 宽表卡片化的字段名标签。
+/* mobile.js — 手机端（≤760px）联动逻辑：宽表卡片化的字段名标签 + 窄屏用量图。
  *
- * 本文件是本仓库自有文件，上游不维护（同步上游时不参与冲突）。
- * 必须在 app.js 之后加载：依赖 app.js 的全局（$、go、esc、各 render*）与已渲染的 DOM。
+ * 必须在 app.js / v3.js 之后加载：依赖 app.js 的全局（$、esc、各 render*）与已渲染的 DOM。
+ * panel-v3 把左侧导航换成了顶栏横向导航（窄屏横向滚动），旧版侧栏抽屉相关代码已移除。
  *
- * 分工：样式在 mobile.css；CSS 表达不了的联动（抽屉开关、th 文本 → td[data-l]）放这里。
- */
-
-/* ── 移动端适配（≤760px）──────────────────────────────────────────────
-   分工：所有手机端**样式**都在 mobile.css；这里只做 CSS 表达不了的联动：
-
-   1) 侧栏抽屉开合（汉堡 / 遮罩 / 导航项 / ESC / 转回宽屏复位）。
-      「转回宽屏复位」不是可选项：遮罩是 fixed 全屏层，窗口拉宽后若不摘掉 .on，
-      它会永远盖在面板上，整个页面点不动。
-
-   2) 表格 → 卡片的**字段名**。卡片模式隐藏了表头，用户就看不出哪个值是哪一列。
-      做法不是把字段名写死在 CSS 里（表头一改名就漂移），而是把每个 <th> 的纯文本
-      抄进同列 <td> 的 data-l，CSS 用 content: attr(data-l) 渲染。
-      行全是 JS 动态 innerHTML 出来的（含弹层里的任务表、积分构成里每账号一张表），
-      故用 MutationObserver 监听 body 子树，任何一次重渲染后自动补标签。
-
-   两件事在 >760px 时都空转：matchMedia 不匹配；data-l 只是多一个桌面端不参与
-   渲染的属性。桌面端表现与改动前完全一致。 */
+ * 分工：样式在 mobile.css；CSS 表达不了的联动（th 文本 → td[data-l]、窄屏重画图表）放这里。
+ * 表格 → 卡片的字段名：卡片模式隐藏了表头，把每个 <th> 的纯文本抄进同列 <td> 的 data-l，
+ * CSS 用 content: attr(data-l) 渲染；行是 JS 动态渲染的，故用 MutationObserver 自动补标签。
+ * >760px 时空转：data-l 只是桌面端不参与渲染的属性。 */
 const MOBILE_MQ = matchMedia('(max-width: 760px)');
-
-const navDrawer = document.querySelector('.nav');
-const navBtn = $('navBtn'), navVeil = $('navVeil');
-
-/* drawerSet 幂等设置抽屉三态载体：侧栏 .open / 遮罩 .on / 按钮 aria-expanded。 */
-function drawerSet(open) {
-  if (navDrawer) navDrawer.classList.toggle('open', open);
-  if (navVeil) navVeil.classList.toggle('on', open);
-  if (navBtn) navBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-}
-function drawerClose() { drawerSet(false); }
-function drawerToggle() { drawerSet(!(navDrawer && navDrawer.classList.contains('open'))); }
-
-if (navBtn) navBtn.addEventListener('click', drawerToggle);          // 汉堡：开/关
-if (navVeil) navVeil.addEventListener('click', drawerClose);         // 点遮罩关
-// 点导航项关：事件委托，不去改上方既有的 go() 绑定
-if (navDrawer) navDrawer.addEventListener('click', ev => { if (ev.target.closest('a')) drawerClose(); });
-addEventListener('keydown', ev => { if (ev.key === 'Escape') drawerClose(); }); // ESC 关
-// 转回 >760px 自动复位：matchMedia 的 change 在跨过断点时触发，resize 兜底
-function drawerResetIfWide() { if (!MOBILE_MQ.matches) drawerClose(); }
-if (MOBILE_MQ.addEventListener) MOBILE_MQ.addEventListener('change', drawerResetIfWide);
-else if (MOBILE_MQ.addListener) MOBILE_MQ.addListener(drawerResetIfWide); // 旧 Safari
-addEventListener('resize', drawerResetIfWide);
 
 /* ── 表格字段名 → data-l ─────────────────────────────────────────────── */
 /* thLabel 只取表头里的**纯文本节点**：表头里可能还有排序箭头之类的装饰 <span>，

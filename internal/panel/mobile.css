@@ -1,406 +1,211 @@
-/* mobile.css — 手机端（≤760px）适配层。
+/* mobile.css — 手机端（≤760px）适配层（panel-v3）。
  *
- * 本文件是本仓库自有文件，上游不维护：以后同步上游（git fetch && git rebase）时它不参与冲突，
- * 移动端样式改动只落在这一处。index.html 里只留一行 <link rel="stylesheet" href="mobile.css">，
- * 且必须排在主 <style> 之后 —— @media 块要能覆盖基础规则。
+ * index.html 里 <link rel="stylesheet" href="mobile.css"> 排在主 <style> 之后（@media 覆盖依赖层叠顺序）。
+ * 只放 ≤760px 生效的规则；桌面端不受影响。
  *
- * 约束：只放 ≤760px 生效的规则。>760px（桌面）必须与上游逐像素一致，
- * 故「块外」只允许一条新增 DOM 默认不渲染的声明（.nav-btn / .nav-veil）。
+ * 布局：顶栏两行（第一行品牌 + 状态 / 主题 / 刷新 / 退出，第二行八个页面横向滚动导航）；
+ * 宽表格在窄屏转成卡片（字段名由 mobile.js 从表头抄进 td[data-l]）；账号卡片 / 折叠行天然自适应。
  */
-
-/* ══ 移动端适配（≤760px）═════════════════════════════════════════════════
-   全部手机端规则集中在这一块，追加在既有 CSS 的末尾：不插进上游规则中间，
-   以后同步上游时冲突面积最小。>760px 时整块不生效 → 桌面端与改动前逐像素一致。
-
-   块外只多了一条"新元素默认不渲染"的声明：.nav-btn（顶栏汉堡）与 .nav-veil
-   （抽屉遮罩）是本方案新增的 DOM，桌面端必须完全不出现。它不覆盖任何既有选择器，
-   故不影响任何现存样式。 */
-.nav-btn, .nav-veil { display: none; }
 @media (max-width: 760px) {
-  /* ── 0. 明暗主题跟随面板设置（不再强制深色）────────────────────────
-     手机端与桌面端共用同一套主题变量：顶栏主题按钮照常可用，选浅色就是浅色。
-
-     这里两条必须写：手机浏览器（Chrome/国产内核）普遍带"自动暗化/强制深色"，
-     它会在 UA 层把浅色页面重新压暗——此时 getComputedStyle 报的是浅色背景，
-     实际像素却是黑的（主题按钮显示太阳、页面却还是深色，就是这个原因）。
-     color-scheme: only light 是标准的退出开关（only 关键字 = 页面只支持这一种），
-     同时让原生控件（下拉/勾选/滚动条/日期选择器）跟随面板主题而不是系统偏好。 */
   html[data-theme="dark"], html[data-theme="dark"] body { color-scheme: only dark; }
   html[data-theme="light"], html[data-theme="light"] body { color-scheme: only light; }
-  /* 基础两行：视口高度链路 + 禁止手机浏览器自动放大字号（避免横向溢出） */
-  html, body { height: 100%; -webkit-text-size-adjust: 100%; }
+  html, body { -webkit-text-size-adjust: 100%; }
 
-  /* ── 1. 侧栏 → 抽屉 ────────────────────────────────────────────────
-     position:fixed + transform（走合成层，不触发重排）；开合由 app.js 切 .open。
-     用 transform 而不是 left：left 每帧都要重排整页。 */
-  .nav {
-    position: fixed; top: 0; left: 0; bottom: 0; z-index: 70;
-    width: 244px; max-width: 84vw; height: 100%;
-    flex-direction: column; align-items: stretch;
-    overflow-x: hidden; overflow-y: auto;
-    transform: translateX(-100%); transition: transform .22s ease;
-    border-right: 1px solid var(--line);
+  /* ── 顶栏：两行 ─────────────────────────────────────────────────── */
+  .topbar {
+    height: auto; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto;
+    gap: 8px 8px; padding: 10px 12px 8px;
   }
-  .nav.open { transform: translateX(0); }
-  .nav ul { display: block; padding: 10px 8px; }
-  .nav .sig { border-top: 1px solid var(--line-soft); }
-  .nav-btn, .topbar button.icon.nav-btn { display: inline-flex; align-items: center; justify-content: center; }
-  .nav-veil {
-    display: block; position: fixed; inset: 0; z-index: 65;
-    background: rgba(6,8,13,.55); opacity: 0; pointer-events: none;
-    transition: opacity .22s ease;
-  }
-  .nav-veil.on { opacity: 1; pointer-events: auto; }
+  .brand { grid-column: 1; grid-row: 1; }
+  .brand .name { display: inline; font-size: 14.5px; }
+  .tright { grid-column: 2; grid-row: 1; gap: 4px; }
+  .tnav { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; padding: 3px; border-radius: 10px;
+    scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+  .tnav a { height: 30px; padding: 0 11px; font-size: 12.5px; scroll-snap-align: start; flex: none; }
+  .tnav a svg { display: none; }
+  .status { height: 26px; padding: 0 9px; font-size: 11.5px; }
+  .status .dot-sep, .status #navRedis { display: none; }
+  .brand { min-width: 0; }
+  .brand .ver { display: none; }
+  .brand .name { overflow: hidden; text-overflow: ellipsis; }
+  .tright button.icon { width: 30px; height: 30px; }
 
-  /* ── 2. 顶栏：紧凑换行，只隐藏分隔符与副标题（主题按钮保留可用）────── */
-  .topbar { flex-wrap: wrap; gap: 6px 8px; padding: 8px 10px; }
-  .topbar h2 { font-size: 15px; }
-  .topbar .sep, .topbar .meta { display: none; }
-  .topbar button { padding: 5px 9px; font-size: 12.5px; border-radius: 8px; }
-  .topbar button.icon { padding: 5px 8px; }
-  .topbar #btnAdd { padding: 5px 12px; }
+  .pagehead { padding: 14px 14px 0; }
+  .pagehead h2 { font-size: 17px; }
+  .pagehead .meta { display: none; }
+  .view { padding: 12px 12px 56px; }
 
-  /* ── 3. 宽表 → 卡片 ────────────────────────────────────────────────
-     关键一条：.tbl-wrap 必须覆盖桌面端的 overflow-x:auto，否则卡片列再好看，
-     容器照样横向滚动。表头隐藏，单元格字段名由 JS 写入的 data-l 渲染。 */
-  .tbl-wrap { overflow: visible; }
-  /* .acc 与 .acc.md 在桌面端都带 min-width（640px / 700px）：卡片模式必须一并清掉，
-     否则模型表不是"卡片"而是"被裁掉右半边"。 */
-  .acc, .acc.md { display: block; width: 100%; min-width: 0; }
-  .acc thead { display: none; }
-  .acc tbody { display: block; }
-  /* 装表格的 .box 退成透明容器，卡片直接浮在页面底上（参考图口径）。
-     不支持 :has() 的浏览器退化为"卡片列表套在面板里"，功能不受影响。 */
-  .box:has(> .tbl-wrap) { background: none; border: 0; box-shadow: none; border-radius: 0; overflow: visible; }
-  .box:has(> .tbl-wrap) > header { padding: 2px 2px 8px; border-bottom: 0; }
-  /* 12 列 grid：每个 td 用 grid-column 占位 → 行分组完全确定（flex-wrap 做不到） */
-  .acc tr {
-    display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
-    grid-auto-rows: min-content; align-items: center; gap: 4px 8px;
-    padding: 8px 10px; margin-bottom: 8px;
-    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
-  }
-  .acc tr:last-child { margin-bottom: 0; }
-  .acc tbody tr:hover { background: var(--surface); }
-  .acc td {
-    display: flex; align-items: center; flex-wrap: wrap; min-width: 0; padding: 0; border: 0;
-    font-size: 11.5px; line-height: 1.3; overflow-wrap: anywhere;
-  }
-  /* 字段名 = 表头该列纯文本（app.js 从 <th> 的文本节点抄进 data-l）。
-     没有标签的单元格（行首色条、跨列提示、账号/模型名）保持干净。 */
-  .acc td::before {
-    content: attr(data-l); flex: none; color: var(--ink-3);
-    font-size: 9.5px; line-height: 1.2; margin-right: 3px;
-    white-space: nowrap; letter-spacing: .2px;
-  }
-  .acc td:not([data-l])::before, .acc td.who::before { content: none; }
-  /* 行首健康色条：桌面端是 3px 竖条，卡片模式改成卡片顶部通栏横条 */
-  .acc .mark { display: none; }
-  .acc.md .mark { display: none; }
-  /* 跨列单元格（空态提示、包分组汇总）整行铺满 */
-  .acc td[colspan] { grid-column: 1 / -1; }
-  /* 兜底列宽：没被下面逐表映射覆盖的单元格默认 3 格/行。上游加新表时（v1.12.0 的
-     「模型锁池」就是一例）宁可三格一行，也不会因为"没有 grid-column"退化成一列碎字。
-     逐表映射都带 id 或额外类限定符，特异性更高，不受这条兜底影响。 */
-  .acc tr > td { grid-column: span 4; }
-  .acc .who { display: block; min-width: 0; max-width: none; }
-  .acc .who .nm { font-size: 13.5px; line-height: 1.25; }
-  .acc .who .id { font-size: 10px; line-height: 1.3; margin-top: 1px; }
-  .acc .num { white-space: normal; }
-  .acc .tag { font-size: 10px; padding: 1px 7px; }
-  .acc .bar { flex: 1 1 auto; min-width: 18px; max-width: none; height: 2px; margin-top: 0; border-radius: 2px; }
-  .acc .usage-line { flex-wrap: wrap; gap: 3px; white-space: normal; }
-  .acc .usage-item { padding: 1px 5px; border-radius: 5px; }
-  .acc .usage-item b { font-size: 10px; }
-  .acc .usage-item em { font-size: 8.5px; }
-  /* ④ 操作按钮：固定占满一行并平分宽度 → 全部按钮永远一行（主按钮蓝） */
-  .acc .acts { grid-column: 1 / -1; display: flex; gap: 5px; }
-  .acc .acts button { flex: 1 1 0; min-width: 0; padding: 5px 2px; font-size: 11.5px; white-space: nowrap; border-radius: 8px; }
-
-  /* 账号卡：① 标题/ID + 状态 ② 积分细条+积分+成功失败+在途 ③ 用量标签+最近成功 ④ 按钮 */
-  #accBody tr > .who { grid-column: 1 / 9; }
-  #accBody tr > td:nth-child(3) { grid-column: 9 / 13; flex-direction: column; align-items: flex-end; gap: 1px; }
-  #accBody tr > td:nth-child(3)::before { content: none; }
-  #accBody tr > td:nth-child(3) .hint { font-size: 9.5px; margin-top: 0; text-align: right; }
-  #accBody tr > .cred { grid-column: 1 / 7; gap: 5px; }
-  #accBody tr > .cred .n { font-size: 10.5px; }
-  #accBody tr > td:nth-child(5) { grid-column: 7 / 10; }
-  #accBody tr > td:nth-child(6) { grid-column: 10 / 13; }
-  #accBody tr > td:nth-child(8) { grid-column: 1 / 4; order: 1; }
-  #accBody tr > .usage-cell { grid-column: 4 / 13; order: 2; }
-  #accBody tr > .acts { order: 3; }
-
-  /* 模型锁池（v1.12.0 新增，8 列）：模型 / 域 / 状态 / 可选·总数 / 锁定账号 / 最早解锁 / 全池解锁 / 原因 */
-  #mlBody tr > td:nth-child(1) { grid-column: 1 / 9; }
-  #mlBody tr > td:nth-child(2) { grid-column: 9 / 13; justify-content: flex-end; }
-  #mlBody tr > td:nth-child(3) { grid-column: 1 / 7; }
-  #mlBody tr > td:nth-child(4), #mlBody tr > td:nth-child(5) { grid-column: span 3; }
-  #mlBody tr > td:nth-child(6), #mlBody tr > td:nth-child(7) { grid-column: span 6; }
-  #mlBody tr > td:nth-child(8) { grid-column: 1 / 13; }
-
-  /* 模型卡：① 模型 ID + 名称 + 能力标签 ② 倍率/默认档/上下文/输出 ③ 支持档位 */
-  #mdBody tr > .who { grid-column: 1 / 13; display: flex; flex-wrap: wrap; gap: 0 6px; }
-  /* 模型 ID 与展示名同一行，能力标签（默认/工具/视觉）独占第二行 → 标题区两行。
-     注意不能给 .id 用 flex:0 0 auto：长模型名会拒绝收缩，整页横向溢出。 */
-  #mdBody tr > .who .nm { flex: 0 1 auto; }
-  #mdBody tr > .who .id { flex: 0 1 auto; }
-  #mdBody tr > .who .id:has(.tag) { flex: 1 1 100%; }
-  #mdBody tr > td:nth-child(3), #mdBody tr > td:nth-child(4),
-  #mdBody tr > td:nth-child(6), #mdBody tr > td:nth-child(7) { grid-column: span 3; }
-  #mdBody tr > .efs { grid-column: 1 / 13; order: 2; min-width: 0; flex-wrap: wrap; gap: 3px; }
-
-  /* 用量明细 / 积分扣除（.acc.zebra）：列由 JS 按维度动态生成（账号/模型/域列数不同），
-     不能写死 nth-child。第一个可见列（名称）整行，其余指标每格 3/12 自动流式排布。
-     上游 .acc.zebra 的斑马纹特异性比 .acc tr 高，卡片模式下必须压掉，否则卡片底色不统一。
-     上游 .acc.req 带 min-width:1080px，手机端不清掉会直接横向溢出。 */
-  .acc.zebra tr > td.mark + td, .acc.zebra tr > td:first-child { grid-column: 1 / -1; }
-  .acc.zebra tr > td { grid-column: span 4; }
-  .acc.zebra tbody tr, .acc.zebra tbody tr:nth-child(even) { background: var(--surface); }
-  .acc.req { min-width: 0; }
-  .acc.req tr > td { grid-column: span 3; }   /* 兜底：上游将来加列也不至于错位 */
-  .acc.req .clip, .acc.req .clip.ip, .acc.req .clip.rid { max-width: none; white-space: normal; overflow-wrap: anywhere; }
-  /* 请求记录（10 列，列序在 index.html 里固定）：把长字段摊开，别挤成一条竖排碎字。
-     时间+结果 / 模型 / 账号+来源 / UA（整行，实测一列只有 74px 宽会折成 12 行）/ 三个指标 / 请求 ID */
-  #reqBody tr > td:nth-child(1) { grid-column: 1 / 9; }
-  #reqBody tr > td:nth-child(2) { grid-column: 9 / 13; justify-content: flex-end; }
-  #reqBody tr > td:nth-child(3) { grid-column: 1 / 13; }
-  #reqBody tr > td:nth-child(4) { grid-column: 1 / 8; }
-  #reqBody tr > td:nth-child(5) { grid-column: 8 / 13; justify-content: flex-end; }
-  #reqBody tr > td:nth-child(6) { grid-column: 1 / 13; }
-  #reqBody tr > td:nth-child(7),
-  #reqBody tr > td:nth-child(8),
-  #reqBody tr > td:nth-child(9) { grid-column: span 4; }
-  #reqBody tr > td:nth-child(10) { grid-column: 1 / 13; }
-  /* 卡片模式给外层 .tbl-wrap 关了滚动（见上面第 3 节），但请求记录必须是「一屏高 +
-     内部纵向滚动」：上游 .req-wrap 就是这个语义，overflow 被覆盖后卡片会溢出去压住
-     下面的运行日志（实测卡片 bottom 1897 vs box bottom 904）。 */
-  .req-wrap { max-height: 70vh; overflow: auto; -webkit-overflow-scrolling: touch; }
-
-  /* 上游新增的筛选栏 / 时间范围 / 维度切换 / KPI 卡：同密度口径收紧 */
-  .fbar { padding: 8px 10px; gap: 6px; }
-  .fbar > input, .fbar > select { padding: 5px 8px; font-size: 12px; }
-  .fbar > input[type=search] { min-width: 0; flex: 1 1 140px; }
-  .trange { gap: 4px; }
-  .trange select, .trange input { padding: 4px 7px; font-size: 12px; }
-  .vtabs { padding: 2px; flex-wrap: wrap; }
-  .vtabs button { padding: 3px 9px; font-size: 12px; }
-  .kpis { gap: 8px; padding: 10px 11px 0; }
-  .kpi { padding: 8px 10px 9px 12px; border-radius: 10px; }
-
-  /* ── 用量「Token 时序」：窄屏在 mobile.js 里重画成 440×230 ────────────
-     上游那张固定 viewBox 1200×200、靠 width:100% 缩放的图，在 360px 宽下缩放比只有
-     ~0.28，内部 10px 刻度实际只剩 ~2.8px（看着就是一排小点）。这里只配套字号与配色，
-     几何在 mobile.js 的 drawMobileUsageChart 里算。 */
-  .uschart-hd { flex-wrap: wrap; gap: 4px 8px; padding: 8px 10px; }
-  .uschart-hd .lb { flex: 1 1 auto; }
-  .uschart-hd .grow { display: none; }
-  .uschart-hd .legend { flex: 0 0 auto; }
-  .uschart-hd .note { flex: 1 1 100%; order: 3; font-size: 11px; line-height: 1.35; }
-  .uschart-body { padding: 6px 8px 2px; }
-  .uschart-body .tk, .uschart-body .tk-avg { font-size: 13px; }
-  .uschart-body .tk-peak { font-size: 13.5px; }
-  .uschart-body .usbar-p { fill: var(--c1); }
-  .uschart-body .usbar-c { fill: var(--c2); }
-
-  /* 任务弹窗卡：任务+状态 / 进度·奖励 / 按钮 */
-  #taskBody tr > .who { grid-column: 1 / 9; }
-  #taskBody tr > td:nth-child(5) { grid-column: 9 / 13; justify-content: flex-end; }
-  #taskBody tr > td:nth-child(5)::before { content: none; }
-  #taskBody tr > td:nth-child(3), #taskBody tr > td:nth-child(4) { grid-column: span 6; }
-
-  /* 积分包明细卡：包名+到期 / 面额·剩余·已用·发放 */
-  #pkDetail tr > td:nth-child(2) { grid-column: 1 / 9; order: -2; }
-  #pkDetail tr > td:nth-child(7) { grid-column: 9 / 13; justify-content: flex-end; order: -1; }
-  #pkDetail tr > td:nth-child(3), #pkDetail tr > td:nth-child(4),
-  #pkDetail tr > td:nth-child(5), #pkDetail tr > td:nth-child(6) { grid-column: span 3; }
-
-  /* ── 4. 弹层 / toast：铺满可用宽度 ───────────────────────────────── */
-  .veil.on { padding: 10px; }
-  .dlg { max-width: 100%; max-height: 92vh; }
-  .dlg header { padding: 14px 14px 11px; }
-  .dlg .body { padding: 14px; }
-  .dlg footer { padding: 12px 14px; flex-wrap: wrap; }
-  .dlg .tabs { margin: 8px 0 0; }
-  .tab-panel + .tab-panel { margin: 0 -14px; padding: 12px 14px 0; }
-  .realm-row { flex-wrap: wrap; gap: 8px; }
-  .savebar { padding: 11px 12px; flex-wrap: wrap; }
-  .vc .ft { flex-wrap: wrap; gap: 8px; }
-  .vc .ft code { font-size: 13px; letter-spacing: .6px; padding: 6px 9px; }
-  .vc .ft .acts { margin-left: 0; }
-  #toasts { left: 12px; right: 12px; bottom: 12px; align-items: stretch; }
-  /* 服务端错误消息里可能夹着长 token/URL，不能只靠 max-width 就把内容裁掉 */
-  .tst { max-width: 100%; min-width: 0; overflow-wrap: anywhere; }
-  /* 弹层内部同样收紧（与卡片台同一密度口径） */
-  .dlg header { padding: 11px 12px 9px; }
-  .dlg header h3 { font-size: 13.5px; }
-  .dlg .body { padding: 11px; }
-  .dlg footer { padding: 9px 11px; gap: 7px; }
-  .dlg footer button { padding: 6px 10px; font-size: 12.5px; border-radius: 8px; }
-  .vc { margin-bottom: 8px; border-radius: 10px; }
-  .vc .hd { padding: 9px 11px 3px; }
-  .vc .meta { padding: 1px 11px 8px; }
-  .vc .ft { padding: 8px 11px; }
-  /* 配置页：字段行更矮，标签/提示更小 */
-  label.fld { margin-bottom: 9px; }
-  label.fld > .lb { font-size: 11.5px; margin-bottom: 3px; }
-  label.fld > .hint, .hint { font-size: 10px; margin-top: 2px; }
-  input, select { padding: 6px 9px; font-size: 12.5px; border-radius: 8px; }
-  button { padding: 6px 10px; font-size: 12.5px; border-radius: 8px; }
-  .switch { padding: 6px 0; }
-  .switch .lb { font-size: 12.5px; }
-  .hr { margin: 2px 0 11px; }
-  legend { font-size: 11px; padding-bottom: 7px; }
-
-  /* ── 5. 其余栅格与列表：全部收紧间距，统一 12px 圆角卡片感 ──────── */
-  .view { padding: 10px 10px 40px; }
-  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); border-radius: 12px; margin-bottom: 10px; }
-  .stat { padding: 7px 9px; min-width: 0; }
-  .stat .v { font-size: 15px; line-height: 1.2; white-space: normal; overflow-wrap: anywhere; }
-  .stat .k { font-size: 9.5px; margin-top: 1px; }
-  .box { border-radius: 12px; margin-bottom: 12px; }
-  .box > header { flex-wrap: wrap; gap: 6px 8px; padding: 9px 11px; }
-  .box > header h3 { font-size: 12.5px; white-space: normal; }
-  /* 上游 .box > header .note 也是 nowrap（L200）：v1.12.0 起 packages 页每个账号盒头部的
-     余额口径文字变长，窄屏直接撑破整页（实测 563px）。用量页那条 id 限定的「单行截断」
-     规则特异性更高，仍按上游保持省略号，不受这里影响。 */
-  .box > header .note { white-space: normal; }
-  .box .pad { padding: 11px; }
-  .grid2, .grid3 { grid-template-columns: minmax(0, 1fr); }
-  /* 任务中心：每项也是一张卡（标题+状态 / 进度+编码 / 信息） */
-  .qgroup { padding: 0 0 12px; }
-  .qgroup header { padding: 6px 2px 6px; }
-  .qgroup header .nm { font-size: 12.5px; }
-  .qrow {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 3px 8px;
-    padding: 8px 10px; margin-bottom: 6px; background: var(--surface);
-    border: 1px solid var(--line); border-radius: 12px;
-  }
-  .qrow .name { flex: 1 1 100%; order: -1; font-size: 12.5px; }
-  .qrow .name .t { white-space: normal; }
-  .qrow .code { flex: 1 1 auto; white-space: normal; overflow-wrap: anywhere; }
-  .qrow .prog { flex: none; text-align: left; font-size: 11.5px; }
-  .qrow .st { flex: none; font-size: 11.5px; }
-  .qrow .msg { flex: 1 1 100%; font-size: 10.5px; white-space: normal; overflow-wrap: anywhere; }
-  #logBox { padding: 10px; max-height: 60vh; font-size: 11px; }
-  .pk-card { padding: 9px 11px; border-radius: 12px; }
-  .pk-card .big { font-size: 19px; }
-  .pk-card .sub { font-size: 10.5px; }
-  .qprog { padding: 8px 11px 0; }
-  .pk-expiry-hdr, .pk-expiry-row { grid-template-columns: 52px minmax(60px, 1fr) 62px; gap: 6px; }
-  .pk-expiry-chart { padding-right: 4px; }
-
-  /* ── 上游 v1.12.0 新增：首页「积分到期提醒」卡片（.exp-row）──────────
-     桌面端是 [色点][账号名 min-width:9em][正文] 的单行布局；窄屏上 9em 硬下限会把
-     正文挤成一条，故让名字可收缩、正文整行换行。 */
-  .exp-row { flex-wrap: wrap; gap: 4px 8px; padding: 7px 0; }
-  .exp-nm { min-width: 0; flex: 0 1 auto; overflow-wrap: anywhere; }
-  .exp-main { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
-
-  /* ── 6. 长不可断字符串兜底 ────────────────────────────────────────
-     长昵称 / 长模型名 / 长券码这类"没有一个断点"的串会撑破 flex 行：flex 子项默认
-     min-width:auto（= 内容的 min-content 宽）拒绝收缩到比它更窄。父级 overflow 为
-     hidden 的就被硬裁掉（内容看不全），为 auto 的（券码弹窗 body）直接长出一条真实
-     横向滚动条。overflow-wrap 必须用 anywhere 而不是 break-word：只有 anywhere 参与
-     min-content 计算，flex 项才肯收缩。*/
-  .qgroup header, .vc .hd, .vc-acct, .pk-card .who, .nav .sig .row { flex-wrap: wrap; }
-  .box > header h3, .qgroup header .nm, .qrow .name .t,
-  .vc .hd .nm, .vc-acct .nm, .vc .ft code, .vc .meta,
-  .pk-card .nm, .pk-card .realm, .pk-legend span, .pk-expiry-legend span,
-  .brand .sub, .nav .sig, .dlg header h3, .dlg header .hint,
-  .hint, .note, .state {
-    min-width: 0; overflow-wrap: anywhere;
-  }
-  /* 名称类单元格/标题：卡片里空间够就换行显示全文，不学桌面端省略号截断 */
-  .who .nm, .who .id { min-width: 0; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
-  /* 标签类（限流冷却 · 1时02分 / 模型档位）窄列里换行，而不是 nowrap 撑着容器溢出 */
-  .tag { max-width: 100%; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
-}
-
-/* ══ 视觉层（2026-11 重设计 v2：中性底 + 单一强调色）在手机端的配套 ═══════════════
-   主样式表是「细框统计条 / 圆点状态 / 直出 1–2 个操作 + 更多菜单 / 分段控件」等形态，
-   这里把它们在 ≤760px 下收回成卡片台口径。单独成块追加在末尾，不打散上面的既有规则。 */
-@media (max-width: 760px) {
-  .nav { background: var(--surface); box-shadow: var(--shadow-lg); }
-  .nav ul { padding: 0 8px 8px; }
-  .nav-veil { background: rgba(10,10,9,.45); }
-  .topbar { height: auto; min-height: 52px; padding: 8px 12px; gap: 8px; }
-  .topbar h2 { font-size: 15px; }
-  .topbar button { height: 30px; padding: 0 10px; }
-  .topbar button.icon { width: 30px; padding: 0; }
-  .view { padding: 12px 12px 48px; }
-
-  /* 统计条：3 列，积分总额独占末行 */
+  /* ── 统计条 ─────────────────────────────────────────────────────── */
   .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-flow: dense; margin-bottom: 12px; border-radius: 10px; }
   .stat { padding: 10px 12px; gap: 4px; }
   .stat.wide { grid-column: 1 / -1; order: 1; }
   .stat .k { font-size: 11px; }
-  .stat .v { font-size: 18px; white-space: nowrap; overflow-wrap: normal; }
+  .stat .v { font-size: 17px; }
 
-  .box { border-radius: 10px; }
-  .box > header { min-height: 0; padding: 10px 12px; }
-  .box > header h3 { overflow: visible; font-size: 13px; }
-  .box > header .note { overflow: visible; }
+  /* ── 工具条 ─────────────────────────────────────────────────────── */
+  .toolbar { gap: 6px; }
+  .toolbar input[type=search] { flex: 1 1 100%; width: auto; }
+  .toolbar select { flex: 1 1 auto; }
+  .toolbar .grow { display: none; }
+  .toolbar .note { flex: 1 1 100%; order: 9; }
+  .toolbar > button, .toolbar > details { flex: 0 0 auto; }
+
+  /* ── 盒子 ──────────────────────────────────────────────────────── */
+  .box { border-radius: 10px; margin-bottom: 14px; }
+  .box > header { flex-wrap: wrap; gap: 6px 8px; min-height: 0; padding: 10px 12px; }
+  .box > header h3 { overflow: visible; font-size: 13px; white-space: normal; flex: 1 1 auto; }
+  .box > header h3 { display: block; flex: 1 1 100%; }
+  .box > header h3 .hint { display: block; margin: 2px 0 0; white-space: normal; line-height: 1.45; }
+  .box > header .grow { display: none; }
+  .box > header .note { overflow: visible; white-space: normal; flex: 1 1 100%; order: 9; }
+  #reqSummary { text-align: left; flex: 1 1 100%; }
+  .box > header input[type=search] { flex: 1 1 100%; width: auto !important; }
   .box .pad { padding: 12px; }
+  .grid2, .grid3, .grid3:has(> :nth-child(4)) { grid-template-columns: minmax(0, 1fr); }
 
-  /* 表格卡片：撤掉桌面端的首末列缩进与粘性表头 */
-  .acc td, .acc td:first-child, .acc td:last-child,
-  .acc.md td, .acc.req td, .acc.md td:nth-child(2), .acc.zebra td:nth-child(2), .acc.req td:first-child,
-  #accBody td.who { padding: 0; }
-  .acc.md .tag, .acc.md .efs .tag { white-space: nowrap; overflow-wrap: normal; }
+  /* ── 账号卡片 ───────────────────────────────────────────────────── */
+  .acards { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .acard { padding: 12px 12px 10px; }
+  .acard:hover { transform: none; }
+  .acard .kv { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .acard .acts-wrap .acts-in > button { height: 30px; }
+
+  /* 添加账号 */
+  #addVeil .addcol { padding: 12px; }
+  #addVeil .inline { flex-wrap: wrap; }
+  #addVeil .inline input { flex: 1 1 100%; }
+
+  /* ── 折叠行 ─────────────────────────────────────────────────────── */
+  .xhead { grid-template-columns: 16px minmax(0, 1fr) auto; gap: 6px 10px; padding: 11px 12px; }
+  .xhead .mid { grid-column: 2 / -1; grid-row: 2; gap: 8px 14px; }
+  .xhead .mid .meter { min-width: 100%; max-width: none; }
+  .xhead .right { grid-column: 3; grid-row: 1; }
+  #crRows .xhead, #tkRows .xhead, #kuRows .xhead, #runRows .xhead { grid-template-columns: 16px minmax(0, 1fr) auto; }
+  #kuRows .xhead .mid .meter { max-width: none; }
+  #crRows .xhead .mid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; }
+  #crRows .xhead .mid .meter { grid-column: 1 / -1; }
+  .xhead .mid .m:not(.meter) { min-width: 0; }
+  #runRows .xhead .mid, #kuRows .xhead .mid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px 10px; }
+  #kuRows .xhead .mid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #kuRows .xhead .mid .meter { grid-column: 1 / -1; }
+  .xbody { padding: 2px 12px 14px; }
+  .xbody table.acc { min-width: 0; border: 0; }
+  .comp-grid { grid-template-columns: 1fr; }
+  .rec { grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 8px; }
+  .rec .t { grid-column: 1; }
+  .rec .j { grid-column: 2; }
+  .rec .c { grid-column: 3; }
+  .rec .m { grid-column: 1 / -1; }
+  .jobbar button { flex: 1 1 calc(50% - 6px); }
+
+  /* ── 宽表 → 卡片 ─────────────────────────────────────────────────── */
+  .tbl-wrap { overflow: visible; }
+  .acc, .acc.md, .acc.req { display: block; width: 100%; min-width: 0; }
+  .acc thead { display: none; }
+  .acc tbody { display: block; }
+  .acc tr {
+    display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: min-content;
+    align-items: center; gap: 6px 8px; padding: 11px 12px; margin: 0 0 8px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow);
+  }
+  .acc tr:last-child { margin-bottom: 0; }
+  .acc tbody tr:hover { background: var(--surface); }
+  .acc td, .acc td:first-child, .acc td:last-child, .acc.md td:nth-child(2), .acc.zebra td:nth-child(2), .acc.req td:first-child {
+    display: flex; align-items: center; flex-wrap: wrap; min-width: 0; padding: 0; border: 0;
+    font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; grid-column: span 4;
+  }
+  .acc td::before { content: attr(data-l); flex: none; color: var(--ink-3); font: 10.5px/1.2 var(--sans); margin-right: 4px; white-space: nowrap; }
+  .acc td:not([data-l])::before, .acc td.who::before, .acc td.acts::before, .acc td.tog::before { content: none; }
+  .acc .mark, .acc.md .mark { display: none; }
+  .acc td[colspan] { grid-column: 1 / -1; display: block; }
+  .acc .who, .acc td:first-child { grid-column: 1 / -1; display: block; max-width: none; }
+  .acc .who .nm, .acc .who .id { white-space: normal; overflow-wrap: anywhere; }
+  .acc td.acts { grid-column: 1 / -1; justify-content: flex-start; flex-wrap: wrap; }
+  .acc td.acts .mtest { flex: 1 1 100%; max-width: none; white-space: normal; }
+  .acc .num { white-space: normal; }
+  .acc .tag { white-space: nowrap; }
+  .acc .clip, .acc .clip.ip, .acc .clip.rid { max-width: none; white-space: normal; overflow-wrap: anywhere; }
+  .box:has(> .tbl-wrap) > .tbl-wrap, .box > .tbl-wrap { padding: 10px; }
   .acc.req td:nth-child(-n+5) { white-space: normal; }
-  .acc th { position: static; }
-  .acc tr { border-radius: 10px; padding: 12px; gap: 6px 8px; box-shadow: var(--shadow); }
-  td.num { font-size: 12px; }
-  .acc .tag { font-size: 11.5px; padding-left: 0; padding-right: 0; }
-  .acc .tag.mute, .acc .efs .tag, .acc.md .who .id .tag { padding: 0 6px; }
-  .acc .rate-limits { min-width: 0; max-width: none; width: 100%; }
-  .acc .rate-limit { flex-wrap: wrap; }
-  .acc .rate-limit b { white-space: nowrap; }
-  #accBody tr > td:nth-child(3):has(.rate-limits) { grid-column: 1 / -1; align-items: flex-start; }
-  #accBody tr > td:nth-child(3):has(.rate-limits) .hint { text-align: left; }
-  .acc .usage-cell { width: auto; }
-  .acc .usage-cell .usage-line { display: flex; flex-wrap: wrap; gap: 2px 10px; }
-  .acc .usage-item { padding: 0; }
-  .acc .usage-item b { font-size: 11.5px; }
-  .acc .usage-item em { font-size: 10px; }
-  .acc .bar { height: 3px; }
-  /* 操作：直出按钮平分一行，「更多」固定在行尾 */
-  .acc .acts { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; padding-top: 8px !important; border-top: 1px solid var(--line-soft); }
-  .acc .acts .acts-in { display: flex; flex: 1 1 auto; gap: 6px; min-width: 0; }
-  .acc .acts .acts-in > button { flex: 1 1 0; min-width: 0; height: 30px; padding: 0 4px; font-size: 12.5px; }
-  .acc .acts .menu-pop button { flex: none; height: 32px; padding: 0 10px; font-size: 13px; border-radius: 5px; }
-  .acc .acts details.menu > summary { height: 30px; width: 36px; border: 1px solid var(--line); background: var(--surface); }
-  .sk-row td { padding: 4px 0 !important; }
-  .acc td::before { font-family: var(--sans); }
-  .acc.zebra td .note { margin-left: 6px; }
+  #reqBody tr > td:nth-child(3), #reqBody tr > td:nth-child(6), #reqBody tr > td:nth-child(10) { grid-column: 1 / -1; }
+  #mdBody tr > .efs { grid-column: 1 / -1; }
+  #mdBody tr > td.tog { grid-column: span 4; }
+  /* 密钥卡片：名称 + 开关 / 密钥整行 / 三列指标 / 最近使用 + 删除 */
+  #keyBody tr > td { flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 0; }
+  #keyBody tr > td::before { margin: 0; flex: 0 0 100%; }
+  #keyBody tr > td:nth-child(1) { grid-column: 1 / span 8; grid-row: 1; display: block; }
+  #keyBody tr > td:nth-child(1)::before { content: none; }
+  #keyBody tr > td:nth-child(3) { grid-column: 9 / -1; grid-row: 1; justify-content: flex-end; align-items: center; }
+  #keyBody tr > td:nth-child(3)::before { content: none; }
+  #keyBody tr > td:nth-child(2) { grid-column: 1 / -1; grid-row: 2; padding: 6px 8px; border-radius: 6px; background: var(--surface-2); flex-wrap: nowrap; justify-content: space-between; align-items: center; }
+  #keyBody tr > td:nth-child(2)::before { flex: none; }
+  #keyBody .kdisp { white-space: nowrap; font-size: 12px; }
+  #keyBody tr > td:nth-child(4), #keyBody tr > td:nth-child(5), #keyBody tr > td:nth-child(6) { grid-row: 3; grid-column: span 4; }
+  #keyBody tr > td:nth-child(7) { grid-row: 4; grid-column: 1 / span 8; }
+  #keyBody tr > td.acts { grid-row: 4; grid-column: 9 / -1; align-items: center; justify-content: flex-end; }
+  #keyBody tr > td[colspan] { grid-column: 1 / -1; grid-row: auto; }
+  .req-wrap { max-height: 70vh; overflow: auto; -webkit-overflow-scrolling: touch; }
 
-  /* 补偿行：标签不拆字，整行可换行 */
-  .comp-row { flex-wrap: wrap; row-gap: 6px; gap: 6px 12px; }
-  .comp-row > span:first-child { min-width: 0; flex: 1 1 100%; }
-  .comp-row .tag { white-space: nowrap; }
-
-  .kpis { padding: 0; gap: 0; }
-  .box:has(> .tbl-wrap) > .kpis { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }
-  .kpi { padding: 10px 12px; border-radius: 0; }
+  /* ── 筛选栏 / 图表 ──────────────────────────────────────────────── */
+  .fbar { padding: 8px 10px; gap: 6px; }
+  .fbar > input[type=search] { min-width: 0; flex: 1 1 100%; }
+  .fbar > select, .fbar .trange { flex: 1 1 auto; }
+  .fbar .grow { display: none; }
+  .trange { gap: 4px; }
+  .vtabs { margin-left: 0; flex-wrap: wrap; }
+  .kpis, .kpis.k4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi { padding: 10px 12px 12px; }
   .kpi .v { font-size: 18px; }
-  .vtabs { margin-left: 0; }
-  .fbar { padding: 8px 12px; }
-  .fbar > input, .fbar > select { height: 30px; }
-  .fbar > input[type=search] { padding-left: 30px; }
-  .trange select, .trange input { height: 28px; }
-  .qrow { box-shadow: var(--shadow); border-radius: 10px; }
-  .savebar { bottom: 10px; }
-  .grid2 > .switch { margin-top: 0; }
-  .grid3:has(> :nth-child(4)) { grid-template-columns: minmax(0, 1fr); }
-  input, select { height: 34px; }
-  .inline button { height: 34px; }
-  .exp-row:first-child { padding-top: 0; }
-  .exp-nm { width: auto; white-space: normal; }
-  .exp-dot { top: 0; }
-  #toasts { right: 12px; }
-  .uschart-hd { padding: 0 0 6px; }
-  .uschart-body { padding: 0; }
-  .uschart-body .usbar-p { fill: var(--c1); }
-  .uschart-body .usbar-c { fill: var(--c2); }
-  .tc-empty { padding: 40px 16px; }
+  .uschart-hd { flex-wrap: wrap; gap: 4px 8px; }
+  .uschart-hd .note { flex: 1 1 100%; order: 3; }
+  .uschart-hd .legend { flex-wrap: wrap; }
+  .uschart-body .tk, .uschart-body .tk-avg { font-size: 13px; }
+
+  /* ── 任务队列 ───────────────────────────────────────────────────── */
+  .qrow { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 8px; padding: 8px 10px; margin: 0 10px 6px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+  .qrow .name { flex: 1 1 100%; order: -1; font-size: 12.5px; }
+  .qrow .name .t { white-space: normal; }
+  .qrow .code { flex: 1 1 auto; white-space: normal; overflow-wrap: anywhere; }
+  .qrow .msg { flex: 1 1 100%; white-space: normal; overflow-wrap: anywhere; }
+  .srow, .shead { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 10px 12px; }
+  .stasks { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .qprog { padding: 10px 12px 0; }
+
+  /* ── 调度 / 配置 ────────────────────────────────────────────────── */
+  .master { flex-wrap: wrap; padding: 12px; }
+  .master .tx { flex: 1 1 calc(100% - 60px); }
+  .sched-grid { grid-template-columns: minmax(0, 1fr); }
+  .sjob-fields { grid-template-columns: minmax(0, 1fr); }
+  .sjob-fields .sjob-inline { height: auto; padding: 4px 0 6px; }
+  .nextlist { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .info-grid { grid-template-columns: minmax(0, 1fr); }
+  .keyform { flex: 1 1 100%; }
+  .keyform input { flex: 1 1 auto; width: auto; }
+  .savebar { flex-wrap: wrap; padding: 10px 12px; bottom: 10px; }
+  .savebar .hint { flex: 1 1 100%; }
+  .switch { gap: 12px; }
+  input, select { height: 36px; }
+  .inline button { height: 36px; }
+
+  /* ── 日志 / 其他 ────────────────────────────────────────────────── */
+  #logBox { padding: 10px 0; max-height: 60vh; font-size: 11px; }
+  #logBox .ln { padding: 0 12px; }
+  .pk-grid { grid-template-columns: minmax(0, 1fr); }
+  .pk-expiry-hdr, .pk-expiry-row { grid-template-columns: 52px minmax(60px, 1fr) 62px; gap: 6px; }
+  .exp-row { flex-wrap: wrap; gap: 4px 8px; }
+  .exp-nm { width: auto; flex: 0 1 auto; }
+  .exp-main { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
+  .comp-row { flex-wrap: wrap; gap: 6px 12px; }
+  .comp-row > span:first-child { min-width: 0; flex: 1 1 100%; }
+
+  .veil.on { padding: 10px; }
+  .dlg { max-height: 92vh; }
+  .dlg header { padding: 14px 14px 11px; }
+  .dlg .body { padding: 14px; }
+  .dlg footer { padding: 12px 14px; flex-wrap: wrap; }
+  .vc .ft { flex-wrap: wrap; gap: 8px; }
+  #toasts { left: 12px; right: 12px; bottom: 12px; align-items: stretch; }
+  .tst { max-width: 100%; overflow-wrap: anywhere; }
+  .cover-card { padding: 28px 22px 22px; border-radius: 16px; }
 }

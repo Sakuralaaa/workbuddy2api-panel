@@ -4,7 +4,8 @@
 //   - index.html  页面骨架
 //   - app.js      全部前端逻辑（独立文件而非内联，为了启用无需 unsafe-inline 的严格 CSP）
 //   - mobile.css  手机端（≤760px）适配样式（本仓库自有，上游不维护 → 同步上游不冲突）
-//   - mobile.js   手机端联动逻辑（抽屉开合、宽表卡片化字段名），须在 app.js 之后加载
+//   - v3.js       panel-v3 新页面逻辑（账号卡片 / 积分与任务折叠行 / 密钥 / 按密钥用量 / 调度状态）
+//   - mobile.js   手机端联动逻辑（宽表卡片化字段名、窄屏用量图），须在 app.js / v3.js 之后加载
 //
 // 安全头对"面板页面与全部 /panel/api/* 响应"统一生效：CSP 限制脚本只能来自本服务，
 // 禁止被 iframe 嵌套（防点击劫持），禁 MIME 嗅探，并声明不泄露 Referer 出去。
@@ -26,6 +27,9 @@ var mobileCSS []byte
 
 //go:embed mobile.js
 var mobileJS []byte
+
+//go:embed v3.js
+var v3JS []byte
 
 // csp 内容安全策略（严格版，无需 unsafe-inline）：
 //   - default-src 'none'        默认全禁，逐个开口
@@ -75,6 +79,14 @@ func (p *Panel) mobileStyle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(mobileCSS)
+}
+
+// v3Script 输出 panel-v3 页面逻辑（同源脚本，须在 app.js 之后、mobile.js 之前加载）。
+func (p *Panel) v3Script(w http.ResponseWriter, r *http.Request) {
+	setSecurityHeaders(w)
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(v3JS)
 }
 
 // mobileScript 输出手机端联动逻辑（同源脚本，须在 app.js 之后加载）。
