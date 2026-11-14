@@ -44,3 +44,19 @@ func TestCNChatBaseRequiresRestart(t *testing.T) {
 		t.Fatal("cn.chat_base missing from restart-required fields")
 	}
 }
+
+// 只改热生效字段（如模型启停）时不提示需重启；真改了需重启字段才列出。
+func TestChangedRestartFieldsOnlyReportsChanges(t *testing.T) {
+	boot := Default()
+	_ = boot.normalize()
+	same := Default()
+	_ = same.normalize()
+	same.Models.Disabled = []string{"cn:x"}
+	if got := changedRestartFields(boot, same); len(got) != 0 {
+		t.Fatalf("unchanged restart fields reported: %v", got)
+	}
+	same.CN.ChatBase = "https://www.workbuddy.cn"
+	if got := changedRestartFields(boot, same); !slices.Equal(got, []string{"cn.chat_base"}) {
+		t.Fatalf("got %v want [cn.chat_base]", got)
+	}
+}

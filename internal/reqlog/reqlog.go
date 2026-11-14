@@ -10,7 +10,9 @@ import (
 	"bufio"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -80,10 +82,10 @@ type Event struct {
 	HasCredit        bool      `json:"credit_known"`
 	// CacheHitTokens / CacheMissTokens 上游前缀缓存命中/未命中 token（issue #92）。
 	// 上游未回该维度时两者皆零值省略；hit=0 + miss>0 即整段未命中。
-	CacheHitTokens  int64 `json:"cache_hit_tokens,omitempty"`
-	CacheMissTokens int64 `json:"cache_miss_tokens,omitempty"`
-	ClientIP         string    `json:"client_ip,omitempty"`
-	UserAgent        string    `json:"user_agent,omitempty"`
+	CacheHitTokens  int64  `json:"cache_hit_tokens,omitempty"`
+	CacheMissTokens int64  `json:"cache_miss_tokens,omitempty"`
+	ClientIP        string `json:"client_ip,omitempty"`
+	UserAgent       string `json:"user_agent,omitempty"`
 	// APIKeyID / APIKeyName 本次请求鉴权通过所用的 API Key（多密钥，panel-v3）：
 	// "legacy" = config api_key，"panel" = 面板测试请求；未开鉴权时为空。
 	APIKeyID   string `json:"api_key_id,omitempty"`
@@ -529,6 +531,9 @@ func (w *archiveWriter) read(limit int, filter Filter) ([]Event, error) {
 	}
 	entries, err := os.ReadDir(w.cfg.Dir)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil // 还没写过归档
+		}
 		return nil, err
 	}
 	// 文件读取顺序无关紧要：结果一律按事件时间排序。不能依赖归档文件的 mtime 还原时间
@@ -542,6 +547,9 @@ func (w *archiveWriter) read(limit int, filter Filter) ([]Event, error) {
 			continue
 		}
 		rows, err := readFile(filepath.Join(w.cfg.Dir, name), filter)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue // 列目录后被保留期清理/轮转删掉：跳过，不让整页 500
+		}
 		if err != nil {
 			return out, err
 		}

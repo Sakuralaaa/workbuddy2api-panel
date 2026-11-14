@@ -33,6 +33,10 @@ func TestMultiKeyAuthAndUsage(t *testing.T) {
 	keys, _ := apikeys.Open("")
 	k1, s1, _ := keys.Create("客户端1")
 	_, s2, _ := keys.Create("客户端2")
+	// 启动时 api_key 迁入密钥表（main.go ImportLegacy）；此后 /v1 只认密钥表。
+	if created, err := keys.ImportLegacy("legacy-key", "主密钥（原 api_key）"); err != nil || !created {
+		t.Fatalf("import legacy: %v %v", created, err)
+	}
 	rl := reqlog.New(reqlog.Config{})
 	defer rl.Close()
 	h := NewHandler(Config{
@@ -66,8 +70,8 @@ func TestMultiKeyAuthAndUsage(t *testing.T) {
 	if by[k1.ID].Total.Requests != 1 || by[k1.ID].Total.Success != 1 || by[k1.ID].Total.TotalTokens != 2 {
 		t.Fatalf("k1 usage=%+v", by[k1.ID].Total)
 	}
-	if by[apikeys.LegacyID].Total.Requests != 1 {
-		t.Fatalf("legacy usage=%+v", by[apikeys.LegacyID].Total)
+	if by[apikeys.LegacyID].Total.Requests != 0 {
+		t.Fatalf("legacy id should no longer be used: %+v", by[apikeys.LegacyID].Total)
 	}
 	if m := by[k1.ID].ByModel["glm-5.2"]; m.Requests != 1 {
 		t.Fatalf("by model=%+v", by[k1.ID].ByModel)
@@ -80,7 +84,7 @@ func TestMultiKeyAuthAndUsage(t *testing.T) {
 	for _, e := range rl.Snapshot().Recent {
 		ids = append(ids, e.APIKeyID)
 	}
-	if !strings.Contains(strings.Join(ids, ","), k1.ID) || !strings.Contains(strings.Join(ids, ","), apikeys.LegacyID) {
+	if !strings.Contains(strings.Join(ids, ","), k1.ID) || strings.Contains(strings.Join(ids, ","), apikeys.LegacyID) {
 		t.Fatalf("request log key ids=%v", ids)
 	}
 }
@@ -172,5 +176,46 @@ func TestModelDisabledToggle(t *testing.T) {
 	h.ServeHTTP(rec, chatReq("", "cn:kimi-k2"))
 	if rec.Code != 200 {
 		t.Fatalf("re-enabled call code=%d", rec.Code)
+	}
+}
+
+// api_key 迁入后：可停用/删除；删除后即使配置里仍有该值也不能调用，也不会被再次迁入；
+// 密钥表删空时鉴权仍开启（全部 401），不会变成公开服务。
+func TestImportedLegacyKeyCanBeDisabledAndDeleted(t *testing.T) {
+	up := newFakeUpstream(t, func(string) (int, string, bool) { return 200, sseOK, true })
+	keys, _ := apikeys.Open("")
+	if _, err := keys.ImportLegacy("594926", "主密钥（原 api_key）"); err != nil {
+		t.Fatal(err)
+	}
+	h := NewHandler(Config{
+		Pool:     testPoolWith(&auth.Auth{UID: "u1", AccessToken: "at1", ExpiresAt: 9999999999}),
+		Upstream: up,
+		APIKey:   "594926",
+		Keys:     keys,
+	})
+	call := func() int {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, chatReq("594926", "glm-5.2"))
+		return rec.Code
+	}
+	if c := call(); c != 200 {
+		t.Fatalf("imported key code=%d", c)
+	}
+	id := keys.List()[0].ID
+	_ = keys.SetEnabled(id, false)
+	if c := call(); c != 401 {
+		t.Fatalf("disabled imported key code=%d", c)
+	}
+	_ = keys.Delete(id)
+	if c := call(); c != 401 {
+		t.Fatalf("deleted imported key code=%d", c)
+	}
+	if created, _ := keys.ImportLegacy("594926", "x"); created || keys.Count() != 0 {
+		t.Fatalf("deleted key re-imported: created=%v count=%d", created, keys.Count())
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, chatReq("", "glm-5.2"))
+	if rec.Code != 401 {
+		t.Fatalf("empty key table must stay closed, code=%d", rec.Code)
 	}
 }

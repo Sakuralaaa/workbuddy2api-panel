@@ -30,7 +30,7 @@ import (
 // 固定 id：旧 config.api_key 与面板内部测试请求在用量统计里的归属。
 const (
 	LegacyID     = "legacy"
-	LegacyName   = "默认密钥（config api_key）"
+	LegacyName   = "旧主密钥（api_key）"
 	InternalID   = "panel"
 	InternalName = "面板测试"
 )
@@ -106,19 +106,22 @@ type Usage struct {
 }
 
 type fileData struct {
-	Keys  []*Key                                   `json:"keys"`
-	Usage map[string]map[string]map[string]*Bucket `json:"usage"` // key → day → model
+	Keys []*Key `json:"keys"`
+	// Imported 已从配置 api_key 迁入过的密钥摘要：删掉后重启不会再被迁回来。
+	Imported []string                                 `json:"imported,omitempty"`
+	Usage    map[string]map[string]map[string]*Bucket `json:"usage"` // key → day → model
 }
 
 // Store 密钥表 + 用量统计。零值不可用，用 Open 构建；nil *Store 的读方法安全返回空。
 type Store struct {
 	path string
 
-	mu     sync.Mutex
-	keys   []*Key
-	byHash map[string]*Key
-	usage  map[string]map[string]map[string]*Bucket
-	dirty  bool
+	mu       sync.Mutex
+	keys     []*Key
+	byHash   map[string]*Key
+	imported map[string]bool
+	usage    map[string]map[string]map[string]*Bucket
+	dirty    bool
 
 	stop chan struct{}
 	done chan struct{}
@@ -127,7 +130,7 @@ type Store struct {
 
 // Open 读取（不存在则新建空表）path 指向的 JSON 文件。path 为空 = 纯内存（测试用）。
 func Open(path string) (*Store, error) {
-	s := &Store{path: path, byHash: map[string]*Key{}, usage: map[string]map[string]map[string]*Bucket{}}
+	s := &Store{path: path, byHash: map[string]*Key{}, imported: map[string]bool{}, usage: map[string]map[string]map[string]*Bucket{}}
 	if path != "" {
 		raw, err := os.ReadFile(path)
 		switch {
@@ -145,6 +148,9 @@ func Open(path string) (*Store, error) {
 			}
 			if fd.Usage != nil {
 				s.usage = fd.Usage
+			}
+			for _, h := range fd.Imported {
+				s.imported[h] = true
 			}
 		case errors.Is(err, os.ErrNotExist):
 		default:
@@ -200,7 +206,7 @@ func (s *Store) Flush() error {
 		return nil
 	}
 	s.pruneLocked(time.Now())
-	raw, err := json.MarshalIndent(fileData{Keys: s.keys, Usage: s.usage}, "", " ")
+	raw, err := json.MarshalIndent(fileData{Keys: s.keys, Usage: s.usage, Imported: s.importedListLocked()}, "", " ")
 	s.dirty = false
 	s.mu.Unlock()
 	if err != nil {
@@ -234,7 +240,7 @@ func (s *Store) saveNowLocked() error {
 	if s.path == "" {
 		return nil
 	}
-	raw, err := json.MarshalIndent(fileData{Keys: s.keys, Usage: s.usage}, "", " ")
+	raw, err := json.MarshalIndent(fileData{Keys: s.keys, Usage: s.usage, Imported: s.importedListLocked()}, "", " ")
 	if err != nil {
 		return err
 	}
@@ -310,6 +316,46 @@ func (s *Store) Create(name string) (Public, string, error) {
 		return Public{}, "", err
 	}
 	return k.public(), token, nil
+}
+
+func (s *Store) importedListLocked() []string {
+	out := make([]string, 0, len(s.imported))
+	for h := range s.imported {
+		out = append(out, h)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ImportLegacy 把配置里的 api_key（含环境变量 WB2A_API_KEY）迁成密钥表里的一条普通密钥：
+// 之后可在「密钥管理」里改名、停用、删除。同一个值只迁一次——删除后重启不会再出现。
+// 旧的 legacy 用量并入新密钥，用量页不再出现「旧主密钥」。返回是否新建。
+func (s *Store) ImportLegacy(token, name string) (bool, error) {
+	if s == nil || strings.TrimSpace(token) == "" {
+		return false, nil
+	}
+	h := hashOf(token)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.imported[h] {
+		return false, nil
+	}
+	s.imported[h] = true
+	if s.byHash[h] != nil {
+		return false, s.saveNowLocked()
+	}
+	name = cleanName(name)
+	if name == "" {
+		name = "主密钥"
+	}
+	k := &Key{ID: randID(), Name: name, Hash: h, Display: displayOf(token), Enabled: true, CreatedAt: time.Now().UTC()}
+	s.keys = append(s.keys, k)
+	s.byHash[h] = k
+	if old := s.usage[LegacyID]; old != nil {
+		s.usage[k.ID] = old
+		delete(s.usage, LegacyID)
+	}
+	return true, s.saveNowLocked()
 }
 
 func (s *Store) findLocked(id string) (int, *Key) {

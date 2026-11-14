@@ -488,7 +488,14 @@ document.addEventListener('click', ev => {
     if (!d.contains(t) || (t.closest && t.closest('.menu-pop button'))) d.open = false;
   });
 });
-document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeMenus(); });
+document.addEventListener('keydown', ev => {
+  if (ev.key !== 'Escape') return;
+  if (document.querySelector('details.menu[open]')) { closeMenus(); return; }
+  // Esc 关闭弹窗（明文密钥弹窗除外：只显示一次，必须点按钮确认已复制）
+  if ($('taskVeil') && $('taskVeil').classList.contains('on')) closeTasks();
+  else if ($('vcVeil') && $('vcVeil').classList.contains('on')) $('vcVeil').classList.remove('on');
+  else if ($('remarkVeil') && $('remarkVeil').classList.contains('on')) closeRemarks();
+});
 window.addEventListener('scroll', () => closeMenus(), true);
 window.addEventListener('resize', () => closeMenus());
 
@@ -684,7 +691,7 @@ async function loadModels() {
     const [d, pr, st, rm] = await Promise.all([
       api('models'),
       api('model_probes').catch(() => ({})),
-      api('status').catch(() => ({})),
+      api('overview').catch(() => ({})),
       api('request_metrics').catch(() => ({})),
     ]);
     mdAll = d.models || [];
@@ -1179,7 +1186,7 @@ const CFG_MAP = {
   strategy_international: ['pool', 'strategy', 'international'],
   domestic_account_order: ['pool', 'account_order', 'domestic'],
   international_account_order: ['pool', 'account_order', 'international'],
-  listen: ['listen'], api_key: ['api_key'], admin_key: ['admin_key'],
+  listen: ['listen'], admin_key: ['admin_key'],
   schedule_enabled: ['schedule', 'enabled'],
   intl_daily_enabled: ['schedule', 'intl_daily_enabled'], intl_daily_hours: ['schedule', 'intl_daily_hours'],
   intl_daily_web: ['schedule', 'intl_daily_web'], intl_daily_models: ['schedule', 'intl_daily_models'],
@@ -1246,6 +1253,10 @@ async function loadConfig() {
       else if (Array.isArray(v)) el.value = v.join(', ');
       else el.value = v == null ? (name.startsWith('strategy_') ? 'weighted_random' : '') : v;
     }
+    // 面板登录密钥：面板里设了就以面板为准；没设时用部署环境变量（WB2A_ADMIN_KEY，其次 WB2A_API_KEY）兜底。
+    const ak = f.elements.admin_key;
+    if (ak) ak.placeholder = (d.env_set && (d.env_set.admin_key || d.env_set.api_key))
+      ? '未设置：当前用部署环境变量里的密钥登录' : '未设置：当前用 api_key 登录';
     markDurationFields(); // 回填后重置校验态（清掉残留红框；现值来自后端必然合法）
     $('cfgNote').textContent = '';
   } catch (e) { toast('读取配置失败：' + e.message, 'err'); }
@@ -1296,12 +1307,6 @@ function markDurationFields() {
 $('cfgForm').addEventListener('input', ev => {
   if (DURATION_FIELDS.includes(ev.target.name)) markDurationFields();
 });
-$('btnEye').onclick = () => {
-  const el = $('cfgKey');
-  const show = el.type === 'password';
-  el.type = show ? 'text' : 'password';
-  $('btnEye').textContent = show ? '隐藏' : '显示';
-};
 if ($('btnEyeAdmin')) $('btnEyeAdmin').onclick = () => {
   const el = $('cfgAdminKey');
   const show = el.type === 'password';
@@ -1326,14 +1331,13 @@ $('cfgForm').onsubmit = async ev => {
     const r = await api('config', { method: 'POST', body: JSON.stringify(collectConfig()) });
     const n = (r.restart_required || []).length;
     toast(n ? '配置已保存，其中 ' + n + ' 项需重启进程生效' : '配置已保存并立即生效', 'ok');
-    // 管理密钥可能已改：本次会话沿用新值（admin_key 优先，空则回落 api_key），避免下一次轮询被 401。
-    // 先用新值校验一次：环境变量（WB2A_ADMIN_KEY / WB2A_API_KEY）会覆盖面板填写的值，校验不过就保留原密钥。
-    const k = ($('cfgAdminKey') && $('cfgAdminKey').value.trim()) || $('cfgKey').value.trim();
+    // 登录密钥可能已改：本次会话换成新值，避免下一次轮询被 401（先校验一次，不通过就保留原值）。
+    // 清空 = 回落部署环境变量里的密钥：旧会话密钥若已失效，回到登录页。
+    const k = $('cfgAdminKey') ? $('cfgAdminKey').value.trim() : '';
     if (k && k !== localStorage.getItem(LS_KEY)) {
       try {
         const c = await fetch('/panel/api/auth/check', { headers: { Authorization: 'Bearer ' + k } });
-        if (c.ok) localStorage.setItem(LS_KEY, k);
-        else toast('管理密钥由环境变量决定，面板里改的值未生效，继续使用原密钥', 'err');
+        if (c.ok) { localStorage.setItem(LS_KEY, k); toast('登录密钥已更新，下次请用新密钥登录', 'ok'); }
       } catch (_) { /* 网络抖动：保留原密钥 */ }
     }
     v3('loadSchedule');
@@ -1631,6 +1635,8 @@ if ($('btnCompClaimAll')) $('btnCompClaimAll').onclick = async () => {
 /* ── 轮询 ─────────────────────────────────────────────────────────── */
 function refreshVisible() {
   if ($('keyVeil').classList.contains('on')) return; // 封面盖着：不轮询
+  // 有弹出菜单开着时不刷新：重新渲染会把菜单所在的卡片整块替换，菜单一闪就没了。
+  if (document.querySelector('details.menu[open]')) return;
   if (view === 'accounts' || view === 'credits') { loadOverview(true); renderCachedCompensation(); }
   else if (view === 'logs') loadLogs();
   else if (view === 'tasks') { reattachQueueView(); v3('pollTasks'); }

@@ -421,7 +421,10 @@ func ParseConfig(raw []byte) (*Config, error) {
 // 值取自 Default()（含超时/熔断/签到排程等推荐值），api_key 用 crypto/rand 随机生成：
 // 安全默认优于示例占位符（listen 绑定 0.0.0.0，空 key 会把网关裸暴露给局域网）。
 // 返回生成的 key 供启动日志透出。已存在时经 O_EXCL 原子拒绝，绝不改写用户配置。
-func WriteDefault(path string) (string, error) {
+func WriteDefault(path string) (string, error) { return WriteDefaultWith(path, "") }
+
+// WriteDefaultWith 同 WriteDefault，authDir 非空时写入该 auth_dir（Docker：./data/auths，与数据同卷）。
+func WriteDefaultWith(path, authDir string) (string, error) {
 	raw := make([]byte, 18)
 	if _, err := rand.Read(raw); err != nil {
 		return "", fmt.Errorf("gen api_key: %w", err)
@@ -429,6 +432,9 @@ func WriteDefault(path string) (string, error) {
 	key := "sk-" + base64.RawURLEncoding.EncodeToString(raw)
 	c := Default()
 	c.APIKey = key
+	if authDir != "" {
+		c.AuthDir = authDir
+	}
 	_ = c.normalize() // Default() 全合法，normalize 仅补齐 header/idle 超时的展示值
 	out, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
@@ -458,7 +464,8 @@ func applyEnv(c *Config) {
 	if v := os.Getenv("WB2A_API_KEY"); v != "" {
 		c.APIKey = v
 	}
-	if v := os.Getenv("WB2A_ADMIN_KEY"); v != "" {
+	// 面板登录密钥：面板里设过（配置文件有值）就以面板为准，环境变量只在没设过时兜底。
+	if v := os.Getenv("WB2A_ADMIN_KEY"); v != "" && c.AdminKey == "" {
 		c.AdminKey = v
 	}
 	if v := os.Getenv("WB2A_AUTH_DIR"); v != "" {
@@ -788,4 +795,29 @@ func splitCSV(s string) []string {
 		}
 	}
 	return out
+}
+
+// migrateAuthDir 新 auth_dir 里还没有账号文件时，从旧目录一次性复制 *.json（不删旧文件）。
+func migrateAuthDir(from, to string) int {
+	if existing, _ := filepath.Glob(filepath.Join(to, "*.json")); len(existing) > 0 {
+		return 0
+	}
+	files, _ := filepath.Glob(filepath.Join(from, "*.json"))
+	if len(files) == 0 {
+		return 0
+	}
+	if err := os.MkdirAll(to, 0o700); err != nil {
+		return 0
+	}
+	n := 0
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		if os.WriteFile(filepath.Join(to, filepath.Base(f)), raw, 0o600) == nil {
+			n++
+		}
+	}
+	return n
 }

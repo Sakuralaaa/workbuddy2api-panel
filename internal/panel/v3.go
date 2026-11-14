@@ -94,20 +94,12 @@ func (p *Panel) keysList(w http.ResponseWriter, r *http.Request) {
 	} else {
 		legacy = p.cfg.APIKey
 	}
-	masked := ""
-	if legacy != "" {
-		if len(legacy) > 10 {
-			masked = legacy[:6] + "…" + legacy[len(legacy)-4:]
-		} else {
-			masked = "已设置"
-		}
-	}
+	// 配置里的 api_key 已在启动时迁入密钥表；它仍非空时即使表被删空也保持鉴权开启（全部拒绝），
+	// 不会因为删光密钥就变成公开服务。
 	writeJSON(w, http.StatusOK, map[string]any{
-		"keys":              p.cfg.Keys.List(),
-		"legacy_configured": legacy != "",
-		"legacy_display":    masked,
-		"auth_enabled":      legacy != "" || p.cfg.Keys.Count() > 0,
-		"available":         p.cfg.Keys != nil,
+		"keys":         p.cfg.Keys.List(),
+		"auth_enabled": legacy != "" || p.cfg.Keys.Count() > 0,
+		"available":    p.cfg.Keys != nil,
 	})
 }
 

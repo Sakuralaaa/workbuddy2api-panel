@@ -29,10 +29,12 @@ COPY --from=build /out/credit /app/credit
 COPY login.sh signin.sh credit.sh /app/
 COPY scripts/probe_active.py /app/scripts/probe_active.py
 RUN sed -i 's/\r$//' /app/login.sh /app/signin.sh /app/credit.sh && chmod 755 /app/login.sh /app/signin.sh /app/credit.sh
-# 镜像不带真实配置：落 example 作为默认（生产由挂载卷 /app/config.json 覆盖）
-COPY config.example.json /app/config.json
+# 镜像不带 /app/config.json：首次启动在数据目录自动生成 /app/data/config.json（随机 api_key，
+# 环境变量 WB2A_API_KEY / WB2A_ADMIN_KEY 优先），账号放 /app/data/auths——只挂一个 /app/data 卷，
+# 面板里保存的设置、模型启停、账号、密钥重新部署都不丢。自己挂了 /app/config.json 的照旧用它。
+COPY config.example.json /app/config.example.json
 USER app
 EXPOSE 7863
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s \
   CMD wget -qO- http://127.0.0.1:7863/healthz || exit 1
-ENTRYPOINT ["/app/wb2api", "-config", "/app/config.json"]
+ENTRYPOINT ["/app/wb2api", "-config", "/app/data/config.json", "-legacy-config", "/app/config.json", "-default-auth-dir", "./data/auths", "-legacy-auth-dir", "./auths"]

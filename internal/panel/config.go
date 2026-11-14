@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 )
 
 // getConfig 返回当前配置文件内容与路径（前端按 schema 渲染表单）。
@@ -26,6 +27,11 @@ func (p *Panel) getConfig(w http.ResponseWriter, r *http.Request) {
 		"ok":     true,
 		"path":   p.cfg.ConfigPath,
 		"config": cfg,
+		// 部署环境变量里是否带了密钥：登录密钥未在面板设置时用它兜底（前端仅作提示）。
+		"env_set": map[string]bool{
+			"api_key":   os.Getenv("WB2A_API_KEY") != "",
+			"admin_key": os.Getenv("WB2A_ADMIN_KEY") != "",
+		},
 	})
 }
 

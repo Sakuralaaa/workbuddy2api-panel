@@ -718,7 +718,7 @@ body { min-height: 100vh; }
 .acard { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 14px 16px 12px;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow);
   transition: border-color .15s, box-shadow .15s, transform .15s; }
-.acard:hover { border-color: color-mix(in srgb, var(--ink-3) 40%, var(--line)); box-shadow: var(--shadow-lg); transform: translateY(-1px); }
+.acard:hover { border-color: color-mix(in srgb, var(--ink-3) 40%, var(--line)); box-shadow: var(--shadow-lg); }
 .acard.off { opacity: .78; }
 .acard .top { display: flex; align-items: flex-start; gap: 10px; }
 .acard .avatar { width: 36px; height: 36px; border-radius: 10px; flex: none; display: grid; place-items: center;
@@ -951,7 +951,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
     <div class="lead">输入管理密钥进入控制台</div>
     <form onsubmit="return false" autocomplete="off">
       <label class="fld"><span class="lb">管理密钥</span>
-        <input type="password" id="keyInput" placeholder="config.json → admin_key" title="未设置 admin_key 时使用 api_key；密钥在服务端校验" autocomplete="current-password"></label>
+        <input type="password" id="keyInput" placeholder="面板登录密钥" title="在「调度管理 → 服务与密钥」可修改" autocomplete="current-password"></label>
       <button class="primary go" id="btnKey" type="submit">进入面板</button>
     </form>
     <div class="err" id="keyErr" hidden>密钥不正确，请重试。</div>
@@ -1337,7 +1337,7 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
         <header><h3>调用鉴权</h3><span class="grow"></span><span class="note" id="kAuthNote"></span></header>
         <div class="pad">
           <div class="info-grid" id="kInfo"></div>
-          <div class="callout" style="margin-top:14px"><div>调用方在请求头带 <code>Authorization: Bearer &lt;密钥&gt;</code>。配置文件里的 <b>api_key</b> 与下表里任一<b>启用中</b>的密钥都可以调用 <code>/v1/*</code>；面板登录只认<b>管理密钥 admin_key</b>（未设置时回落 api_key）。每个请求都会记录所用密钥，用量按密钥统计（见「用量管理 → 按密钥」）。</div></div>
+          <div class="callout" style="margin-top:14px"><div>调用方在请求头带 <code>Authorization: Bearer &lt;密钥&gt;</code>，下表里任一<b>启用中</b>的密钥都可以调用 <code>/v1/*</code>（部署时设置的 api_key 已自动迁入，可停用或删除）。面板登录用的是单独的<b>面板登录密钥</b>，在「调度管理 → 服务与密钥」修改。每个请求都会记录所用密钥，用量按密钥统计（见「用量管理 → 按密钥」）。</div></div>
         </div>
       </div>
       <div class="box">
@@ -1512,11 +1512,8 @@ label.switch.inline-sw { display: inline-flex; padding: 0; }
             <div class="grid3">
               <label class="fld"><span class="lb">监听地址<span class="tip" title="改动需重启进程" aria-label="改动需重启进程"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
                 <input name="listen" placeholder=":7863"></label>
-              <label class="fld"><span class="lb">调用密钥 api_key<span class="tip" title="/v1/* 调用；另可在「密钥管理」创建多个" aria-label="/v1/* 调用；另可在「密钥管理」创建多个"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
-                <div class="inline"><input name="api_key" id="cfgKey" type="password" placeholder="留空 = 不修改">
-                <button type="button" class="xs" id="btnEye">显示</button></div></label>
-              <label class="fld"><span class="lb">管理密钥 admin_key<span class="tip" title="登录封面与所有管理接口使用；立即生效" aria-label="登录封面与所有管理接口使用；立即生效"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
-                <div class="inline"><input name="admin_key" id="cfgAdminKey" type="password" placeholder="留空 = 回落 api_key">
+              <label class="fld"><span class="lb">面板登录密钥<span class="tip" title="登录面板用；保存后立即生效，优先于部署环境变量" aria-label="登录面板用；保存后立即生效，优先于部署环境变量"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="6.2"/><path d="M8 7.2v3.6" stroke-linecap="round"/><circle cx="8" cy="5.1" r=".55" fill="currentColor" stroke="none"/></svg></span></span>
+                <div class="inline"><input name="admin_key" id="cfgAdminKey" type="password" autocomplete="new-password" placeholder="未设置">
                 <button type="button" class="xs" id="btnEyeAdmin">显示</button></div></label>
             </div>
 <div class="grid3">

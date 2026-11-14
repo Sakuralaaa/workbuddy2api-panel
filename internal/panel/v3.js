@@ -391,10 +391,9 @@ async function v3_loadKeys() {
 function usageOfKey(rep, id) { return ((rep && rep.keys) || []).find(k => k.id === id) || { total: {} }; }
 function renderKeys(d) {
   const enabled = V3.keys.filter(k => k.enabled).length;
-  const legacyU = usageOfKey(V3.keyUsage7, 'legacy').total;
+  const authS = !d.auth_enabled ? '创建一个密钥即开启' : (enabled ? '任一启用中的密钥可调用 /v1' : '没有启用中的密钥，所有调用都会被拒绝');
   $('kInfo').innerHTML =
-    '<div class="it"><div class="k">鉴权状态</div><div class="v">' + (d.auth_enabled ? '已开启' : '未开启（任何人可调用）') + '</div><div class="s">' + (d.auth_enabled ? 'api_key 或任一启用中的密钥可调用' : '设置 api_key 或创建一个密钥即开启') + '</div></div>' +
-    '<div class="it"><div class="k">配置文件 api_key</div><div class="v">' + (d.legacy_configured ? esc(d.legacy_display) : '未设置') + '</div><div class="s">近 7 天 ' + fmtNum(legacyU.requests || 0) + ' 次请求 · 在「调度管理 → 服务与密钥」修改</div></div>' +
+    '<div class="it"><div class="k">鉴权状态</div><div class="v">' + (d.auth_enabled ? '已开启' : '未开启（任何人可调用）') + '</div><div class="s">' + authS + '</div></div>' +
     '<div class="it"><div class="k">API 密钥</div><div class="v">' + V3.keys.length + ' 个 · ' + enabled + ' 个启用</div><div class="s">明文只在创建时显示一次，服务端只存摘要</div></div>';
   $('kAuthNote').textContent = '';
   const tb = $('keyBody');
@@ -998,7 +997,7 @@ async function v3_loadKeyFilter() {
   try {
     const d = await api('keys');
     const cur = sel.value;
-    sel.innerHTML = '<option value="">全部密钥</option><option value="legacy">默认密钥（config api_key）</option><option value="panel">面板测试</option>' +
+    sel.innerHTML = '<option value="">全部密钥</option><option value="legacy">旧主密钥（api_key）</option><option value="panel">面板测试</option>' +
       (d.keys || []).map(k => '<option value="' + esc(k.id) + '">' + esc(k.name) + '</option>').join('');
     sel.value = cur;
     sel.dataset.loaded = '1';

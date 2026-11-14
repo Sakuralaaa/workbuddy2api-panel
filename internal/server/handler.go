@@ -124,7 +124,9 @@ func (h *Handler) authenticate(r *http.Request) (id, name string, ok bool) {
 	if legacy == "" && !hasKeys {
 		return "", "", true
 	}
-	if legacy != "" && httpauth.VerifyBearer(r, legacy) {
+	// 有密钥表时 api_key 已在启动时迁入表中（可停用/删除），这里只认密钥表；
+	// 仅无密钥表的裸用/测试路径保留旧的 api_key 直验。
+	if h.cfg.Keys == nil && legacy != "" && httpauth.VerifyBearer(r, legacy) {
 		return apikeys.LegacyID, apikeys.LegacyName, true
 	}
 	if hasKeys {

@@ -34,7 +34,7 @@ import (
 )
 
 // appVersion 网关版本（fork 版：面板 + 任务体系），透出到 /panel/api/overview。
-const appVersion = "1.14.3-panel"
+const appVersion = "1.14.4"
 
 // usagePathFor 由 state 文件路径推出用量文件路径：同目录、文件名 usage.json。
 // 这样 config 里改 state_file 时用量数据跟着走，不需要额外配置项。
@@ -52,7 +52,19 @@ func stateSibling(stateFile, name string) string {
 
 func main() {
 	cfgPath := flag.String("config", "config.json", "配置文件路径（默认当前目录 config.json；不存在时自动生成推荐配置）")
+	legacyCfg := flag.String("legacy-config", "", "旧配置路径：该处存在普通文件时优先使用它（兼容把 config.json 挂到旧位置的部署）")
+	genAuthDir := flag.String("default-auth-dir", "", "自动生成配置时写入的 auth_dir（空=./auths）")
+	legacyAuthDir := flag.String("legacy-auth-dir", "", "自动生成配置时，若新 auth_dir 为空，从此目录一次性复制账号文件")
 	flag.Parse()
+
+	// Docker 镜像：配置默认落在数据目录（/app/data/config.json，与 state/密钥同一个卷），
+	// 面板里保存的设置、模型启停重新部署后不丢；用户自己挂了 /app/config.json 的照旧用它。
+	if *legacyCfg != "" {
+		if st, e := os.Stat(*legacyCfg); e == nil && st.Mode().IsRegular() {
+			*cfgPath = *legacyCfg
+		}
+	}
+	log.Printf("config file: %s", *cfgPath)
 
 	cfg, err := Load(*cfgPath)
 	if err != nil {
@@ -60,8 +72,17 @@ func main() {
 		if errors.Is(err, fs.ErrNotExist) {
 			// 首次运行：目录下没有配置 → 自动落一份推荐配置（含随机 api_key）再加载。
 			// 双击 exe / 裸跑 docker 即开，无需先手工复制样例。
-			if key, werr := WriteDefault(*cfgPath); werr == nil {
-				log.Printf("config %s 不存在，已生成推荐配置（api_key=%s，记录在该文件里，可自行修改）", *cfgPath, key)
+			if key, werr := WriteDefaultWith(*cfgPath, *genAuthDir); werr == nil {
+				if *genAuthDir != "" && *legacyAuthDir != "" {
+					if n := migrateAuthDir(*legacyAuthDir, *genAuthDir); n > 0 {
+						log.Printf("已把 %d 个账号文件从 %s 复制到 %s", n, *legacyAuthDir, *genAuthDir)
+					}
+				}
+				if os.Getenv("WB2A_API_KEY") != "" {
+					log.Printf("config %s 不存在，已生成推荐配置（api_key 以环境变量 WB2A_API_KEY 为准）", *cfgPath)
+				} else {
+					log.Printf("config %s 不存在，已生成推荐配置（api_key=%s，记录在该文件里，可自行修改）", *cfgPath, key)
+				}
 				cfg, err = Load(*cfgPath)
 			}
 			if err != nil {
@@ -74,6 +95,8 @@ func main() {
 			log.Fatalf("load config: %v", err)
 		}
 	}
+
+	bootCfg = cfg
 
 	auths, err := auth.LoadDir(cfg.AuthDir)
 	if err != nil {
@@ -276,6 +299,13 @@ func main() {
 	}
 	keyStore.Start()
 	defer keyStore.Close()
+	// 配置里的 api_key（含环境变量 WB2A_API_KEY）迁成「密钥管理」里的普通密钥：可改名/停用/删除，
+	// 同一个值只迁一次（删掉后重启不会再出现）。/v1 鉴权只认密钥表。
+	if created, err := keyStore.ImportLegacy(cfg.APIKey, "主密钥（原 api_key）"); err != nil {
+		log.Printf("迁移 api_key 到密钥管理失败: %v", err)
+	} else if created {
+		log.Printf("已把配置里的 api_key 迁入「密钥管理」，可在面板里停用或删除")
+	}
 	panelStore, err := panelstore.Open(stateSibling(cfg.StateFile, "panel-store.json"))
 	if err != nil {
 		log.Fatalf("load panel store: %v", err)
@@ -584,7 +614,63 @@ func saveConfig(raw []byte, path string, live *livecfg.Holder, p *pool.Pool, up 
 	sch.SetTaskSweepInterval(newCfg.TaskSweepInterval)
 	sch.SetIncludeDisabledInTasks(newCfg.Schedule.IncludeDisabledInTasks)
 
-	return restartRequiredFields(newCfg), nil
+	return changedRestartFields(bootCfg, newCfg), nil
+}
+
+// bootCfg 进程启动时装配用的配置：判断「需重启」字段是否真的改了（只改模型启停之类
+// 不该再提示一长串需重启）。
+var bootCfg *Config
+
+// restartFieldValue 需重启字段的当前取值（比较用）。
+func restartFieldValue(c *Config, name string) any {
+	switch name {
+	case "listen":
+		return c.Listen
+	case "auth_dir":
+		return c.AuthDir
+	case "state_file":
+		return c.StateFile
+	case "upstream.timeout_seconds":
+		return c.Upstream.TimeoutSeconds
+	case "upstream.header_timeout_seconds":
+		return c.Upstream.HeaderTimeoutSeconds
+	case "upstream.idle_timeout_seconds":
+		return c.Upstream.IdleTimeoutSeconds
+	case "upstream.user_agent":
+		return c.Upstream.UserAgent
+	case "cn.chat_base":
+		return c.CN.ChatBase
+	case "upstash":
+		return c.Upstash.URL + "\x00" + c.Upstash.Token
+	case "session_sticky.ttl":
+		return c.SessionSticky.TTL
+	case "session_sticky.gc_interval":
+		return c.SessionSticky.GCInterval
+	case "logging.request_archive_enabled":
+		return c.Logging.RequestArchiveEnabled
+	case "logging.request_retention_days":
+		return c.Logging.RequestRetentionDays
+	case "logging.request_archive_max_mb":
+		return c.Logging.RequestArchiveMaxMB
+	case "server.read_timeout":
+		return c.Server.ReadTimeout
+	}
+	return nil
+}
+
+// changedRestartFields 只返回相对启动配置真的变了的需重启字段；boot 为 nil 时回落完整清单。
+func changedRestartFields(boot, c *Config) []string {
+	all := restartRequiredFields(c)
+	if boot == nil {
+		return all
+	}
+	out := []string{}
+	for _, name := range all {
+		if restartFieldValue(boot, name) != restartFieldValue(c, name) {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // applyCNChatBase 把 config cn.chat_base 装配进上游 client；空则保留内置默认，

@@ -98,7 +98,7 @@ func TestSaveConfigKeepsEnvKeys(t *testing.T) {
 	t.Setenv("WB2A_ADMIN_KEY", "env-admin")
 	dir := t.TempDir()
 	fp := filepath.Join(dir, "config.json")
-	if err := os.WriteFile(fp, []byte(`{"api_key":"test_key","admin_key":"test_admin_key"}`), 0o600); err != nil {
+	if err := os.WriteFile(fp, []byte(`{"api_key":"test_key","admin_key":""}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(fp)
@@ -115,5 +115,43 @@ func TestSaveConfigKeepsEnvKeys(t *testing.T) {
 	s := live.Load()
 	if s.APIKey != "594926" || s.PanelKey() != "env-admin" {
 		t.Fatalf("env keys lost after save: api=%q panel=%q", s.APIKey, s.PanelKey())
+	}
+}
+
+// 面板登录密钥：面板里保存的值优先于环境变量 WB2A_ADMIN_KEY（环境变量只在未设置时兜底），
+// 保存后立即生效；清空后回落环境变量。
+func TestPanelAdminKeyBeatsEnv(t *testing.T) {
+	t.Setenv("WB2A_API_KEY", "594926")
+	t.Setenv("WB2A_ADMIN_KEY", "env-admin")
+	dir := t.TempDir()
+	fp := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(fp, []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(fp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	live := livecfg.New(liveFrom(cfg))
+	if live.Load().PanelKey() != "env-admin" {
+		t.Fatalf("env fallback panel=%q", live.Load().PanelKey())
+	}
+	p := pool.New("")
+	up := upstream.New()
+	sch := scheduler.New(scheduler.Config{})
+	if _, err := saveConfig([]byte(`{"admin_key":"my-panel-key"}`), fp, live, p, up, sch); err != nil {
+		t.Fatal(err)
+	}
+	if got := live.Load().PanelKey(); got != "my-panel-key" {
+		t.Fatalf("panel-set key not applied: %q", got)
+	}
+	if again, _ := Load(fp); again.AdminKey != "my-panel-key" {
+		t.Fatalf("panel-set key lost on restart: %q", again.AdminKey)
+	}
+	if _, err := saveConfig([]byte(`{"admin_key":""}`), fp, live, p, up, sch); err != nil {
+		t.Fatal(err)
+	}
+	if got := live.Load().PanelKey(); got != "env-admin" {
+		t.Fatalf("cleared key should fall back to env: %q", got)
 	}
 }
